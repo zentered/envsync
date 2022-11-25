@@ -23,7 +23,6 @@ For example, if you have the following `.env.example` file:
 
 ```bash
 GCP_PROJECT=myproject-dev
-NODE_ENV=development
 API_URL=http://localhost:3000
 
 AUTH0_CLIENT_SECRET=envsync//auth0-api-client-secret/latest
@@ -33,7 +32,6 @@ Will write the following `.env` file:
 
 ```bash
 GCP_PROJECT=myproject-dev
-NODE_ENV=development
 API_URL=http://localhost:3000
 
 AUTH0_CLIENT_SECRET=secret-value-from-gcp-project
@@ -48,7 +46,17 @@ is required in the same folder as the `.env.example` file.
 
 ```bash
     npm install @zentered/envsync
+    # pnpm i @zentered/envsync
+    # yarn add @zentered/envsync
 ```
+
+Two things are required to use `EnvSync`:
+
+1. An `.env.example` file (use `envsync//[variable]` to indicate a variable that
+   should be fetched from Secrets Manager). The first variable should be
+   `GCP_PROJECT` with the valid project id
+2. a `keyfile.json` from a Google Cloud Platform service account with Secrets
+   Manager API enabled, and permission to read secrets
 
 `EnvSync` is a CLI tool. You can run it with `npx envsync` or add it as a
 `script` in `package.json`:
