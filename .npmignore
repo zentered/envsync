@@ -2,4 +2,5 @@ test
 .github
 .husky
 CONTRIBUTING.md
-
+.nyc_output
+coverage
