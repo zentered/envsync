@@ -1,0 +1,69 @@
+{
+  "name": "@zentered/envsync",
+  "version": "1.0.0",
+  "private": false,
+  "description": "Synchronize .env files with Google Cloud Secrets Manager",
+  "keywords": [],
+  "homepage": "https://github.com/zentered/envsync#readme",
+  "bugs": {
+    "url": "https://github.com/zentered/envsync/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zentered/envsync.git"
+  },
+  "license": "MIT",
+  "author": "Zentered <hi@zentered.co> (https://zentered.co)",
+  "contributors": [
+    "Patrick Heneise (https://github.com/patrickheneise)"
+  ],
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "codestyle": "prettier --write \"./**/*.{js,md}\"",
+    "dev": "nodemon -r dotenv/config index.js",
+    "lint": "eslint --fix . --ext .js --ext md",
+    "start": "node index.js",
+    "test": "NODE_OPTIONS=--loader=esmock c8 --check-coverage --lines 50 --functions 45 --branches 75 --statements 25 tap --no-coverage-report test/*.test.js test/**/*.test.js"
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  },
+  "lint-staged": {
+    "*.{js,json,md,yaml}": [
+      "prettier --write"
+    ],
+    "*.js": [
+      "eslint --cache --fix"
+    ]
+  },
+  "release": {
+    "branches": [
+      "main"
+    ]
+  },
+  "dependencies": {
+    "@google-cloud/secret-manager": "^4.1.4"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^17.3.0",
+    "@commitlint/config-conventional": "^17.3.0",
+    "c8": "^7.12.0",
+    "dotenv": "^16.0.3",
+    "eslint": "8.28.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-json": "^3.1.0",
+    "eslint-plugin-markdown": "^3.0.0",
+    "eslint-plugin-node": "^11.1.0",
+    "esmock": "^2.0.7",
+    "husky": "^8.0.2",
+    "lint-staged": "^13.0.4",
+    "prettier": "^2.8.0",
+    "tap": "^16.3.2"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}

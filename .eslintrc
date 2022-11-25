@@ -1,0 +1,27 @@
+{
+  "globals": {
+    "fastify": "readonly"
+  },
+  "env": {
+    "es6": true,
+    "node": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "plugin:node/recommended",
+    "plugin:json/recommended",
+    "plugin:markdown/recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "rules": {
+    "node/no-unpublished-import": [
+      "error",
+      {
+        "allowModules": ["tap", "esmock"]
+      }
+    ]
+  }
+}
