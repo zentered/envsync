@@ -18,6 +18,10 @@
     "Patrick Heneise (https://github.com/patrickheneise)"
   ],
   "type": "module",
+  "bin": {
+    "@zentered/envsync": "./index.js",
+    "envsync": "./index.js"
+  },
   "main": "index.js",
   "scripts": {
     "codestyle": "prettier --write \"./**/*.{js,md}\"",
