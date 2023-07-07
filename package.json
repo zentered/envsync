@@ -49,23 +49,23 @@
     ]
   },
   "dependencies": {
-    "@google-cloud/secret-manager": "^4.1.4"
+    "@google-cloud/secret-manager": "^4.2.2"
   },
   "devDependencies": {
-    "@commitlint/cli": "^17.3.0",
-    "@commitlint/config-conventional": "^17.3.0",
-    "c8": "^7.12.0",
-    "dotenv": "^16.0.3",
-    "eslint": "8.28.0",
-    "eslint-config-prettier": "^8.5.0",
+    "@commitlint/cli": "^17.6.6",
+    "@commitlint/config-conventional": "^17.6.6",
+    "c8": "^7.14.0",
+    "dotenv": "^16.3.1",
+    "eslint": "8.44.0",
+    "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-json": "^3.1.0",
     "eslint-plugin-markdown": "^3.0.0",
     "eslint-plugin-node": "^11.1.0",
-    "esmock": "^2.0.7",
-    "husky": "^8.0.2",
-    "lint-staged": "^13.0.4",
-    "prettier": "^2.8.0",
-    "tap": "^16.3.2"
+    "esmock": "^2.3.1",
+    "husky": "^8.0.3",
+    "lint-staged": "^13.2.3",
+    "prettier": "^2.8.8",
+    "tap": "^16.3.7"
   },
   "engines": {
     "node": ">=16"
