@@ -1,9 +1,8 @@
-'use strict'
-
-import { test } from 'tap'
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
 import esmock from 'esmock'
 
-test('joinEnv() returns value from GCP', async ({ same }) => {
+test('joinEnv() returns value from GCP', async () => {
   const { readExample } = await esmock('../lib/readExample.js', {
     '../lib/fetchVariable.js': {
       fetchVariable: async (gcpProjectId, key, value) => {
@@ -25,5 +24,5 @@ test('joinEnv() returns value from GCP', async ({ same }) => {
     ['AUTH0_CLIENT_SECRET', 'envsync//testkey/latest'],
     ['']
   ]
-  same(actual, expected)
+  assert.same(actual, expected)
 })

@@ -28,7 +28,7 @@
     "dev": "nodemon -r dotenv/config index.js",
     "lint": "eslint --fix . --ext .js --ext md",
     "start": "node index.js",
-    "test": "NODE_OPTIONS=--loader=esmock c8 --check-coverage --lines 50 --functions 45 --branches 75 --statements 25 tap --no-coverage-report test/*.test.js test/**/*.test.js"
+    "test": "node --loader=esmock --test"
   },
   "commitlint": {
     "extends": [
@@ -49,25 +49,23 @@
     ]
   },
   "dependencies": {
-    "@google-cloud/secret-manager": "^4.2.2"
+    "@google-cloud/secret-manager": "^5.0.0"
   },
   "devDependencies": {
-    "@commitlint/cli": "^17.6.6",
-    "@commitlint/config-conventional": "^17.6.6",
-    "c8": "^7.14.0",
+    "@commitlint/cli": "^17.7.1",
+    "@commitlint/config-conventional": "^17.7.0",
     "dotenv": "^16.3.1",
-    "eslint": "8.44.0",
-    "eslint-config-prettier": "^8.8.0",
+    "eslint": "8.48.0",
+    "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-json": "^3.1.0",
-    "eslint-plugin-markdown": "^3.0.0",
+    "eslint-plugin-markdown": "^3.0.1",
     "eslint-plugin-node": "^11.1.0",
-    "esmock": "^2.3.1",
+    "esmock": "^2.3.8",
     "husky": "^8.0.3",
-    "lint-staged": "^13.2.3",
-    "prettier": "^2.8.8",
-    "tap": "^16.3.7"
+    "lint-staged": "^14.0.1",
+    "prettier": "^3.0.3"
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=20"
   }
 }

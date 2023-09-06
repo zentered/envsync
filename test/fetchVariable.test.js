@@ -1,12 +1,11 @@
-'use strict'
-
-import { test } from 'tap'
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
 import esmock from 'esmock'
 
-test('fetchVariable() returns value from GCP', async ({ equal }) => {
+test('fetchVariable() returns value from GCP', async () => {
   const { fetchVariable } = await esmock('../lib/fetchVariable.js', {
     '@google-cloud/secret-manager': {
-      SecretManagerServiceClient: (() =>
+      SecretManagerServiceClient: () =>
         class {
           async accessSecretVersion(name) {
             return Promise.resolve([
@@ -17,7 +16,7 @@ test('fetchVariable() returns value from GCP', async ({ equal }) => {
               }
             ])
           }
-        })()
+        }
     }
   })
   const [key, value] = await fetchVariable(
@@ -25,14 +24,14 @@ test('fetchVariable() returns value from GCP', async ({ equal }) => {
     'testkey',
     'envsync//variable'
   )
-  equal(key, 'testkey')
-  equal(value, 'projects/project/secrets/variable/versions/latest')
+  assert.equal(key, 'testkey')
+  assert.equal(value, 'projects/project/secrets/variable/versions/latest')
 })
 
-test('fetchVariable() returns version from GCP', async ({ equal }) => {
+test('fetchVariable() returns version from GCP', async () => {
   const { fetchVariable } = await esmock('../lib/fetchVariable.js', {
     '@google-cloud/secret-manager': {
-      SecretManagerServiceClient: (() =>
+      SecretManagerServiceClient: () =>
         class {
           async accessSecretVersion(name) {
             return Promise.resolve([
@@ -43,7 +42,7 @@ test('fetchVariable() returns version from GCP', async ({ equal }) => {
               }
             ])
           }
-        })()
+        }
     }
   })
   const [key, value] = await fetchVariable(
@@ -51,6 +50,6 @@ test('fetchVariable() returns version from GCP', async ({ equal }) => {
     'testkey',
     'envsync//variable/1'
   )
-  equal(key, 'testkey')
-  equal(value, 'projects/project/secrets/variable/versions/1')
+  assert.equal(key, 'testkey')
+  assert.equal(value, 'projects/project/secrets/variable/versions/1')
 })

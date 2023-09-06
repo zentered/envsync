@@ -1,9 +1,8 @@
-'use strict'
-
-import { test } from 'tap'
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
 import { joinEnv } from '../lib/joinEnv.js'
 
-test('joinEnv() returns value from GCP', async ({ equal }) => {
+test('joinEnv() returns value from GCP', () => {
   const actual = joinEnv([['testkey', 'testvalue']])
-  equal(actual, 'testkey=testvalue')
+  assert.equal(actual, 'testkey=testvalue')
 })
