@@ -50,7 +50,7 @@ is required in the same folder as the `.env.example` file.
     # yarn add @zentered/envsync
 ```
 
-Two things are required to use `EnvSync`:
+#### Two things are required to use `EnvSync`:
 
 1. An `.env.example` file (use `envsync//[variable]` to indicate a variable that
    should be fetched from Secrets Manager). The first variable should be
@@ -68,6 +68,11 @@ Two things are required to use `EnvSync`:
   }
 }
 ```
+
+#### Optional: Specifying the `.env` file:
+
+- If you have multiple `.env` files, you can provide the filename as an argument. The `.env` example file must end in `.example`
+- Usage: `npx envsync .env.development.example` will create `.env.development`
 
 ## Contributing
 
