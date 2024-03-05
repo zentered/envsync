@@ -6,6 +6,10 @@ import fs from 'fs/promises'
 import { readExample } from './lib/readExample.js'
 import { joinEnv } from './lib/joinEnv.js'
 
-const exampleFile = await fs.readFile('.env.example', 'utf8')
+const args = process.argv.slice(2);
+const filePath = args[0] || '.env.example'
+
+const exampleFile = await fs.readFile(filePath, 'utf8')
 const env = await readExample(exampleFile)
-await fs.writeFile('.env', joinEnv(env))
+const output = filePath.replace(".example", "")
+await fs.writeFile(output, joinEnv(env))
