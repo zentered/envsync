@@ -71,7 +71,12 @@ is required in the same folder as the `.env.example` file.
 
 #### Optional: Specifying the `.env` file:
 
-- If you have multiple `.env` files, you can provide the filename as an argument. The `.env` example file must end in `.example`
+Note: this is an anti-pattern and should be avoided. Environment variables
+belong in the environment, not in the codebase. See
+[12 factor app](https://12factor.net/config).
+
+- If you have multiple `.env` files, you can provide the filename as an
+  argument. The `.env` example file must end in `.example`
 - Usage: `npx envsync .env.development.example` will create `.env.development`
 
 ## Contributing
