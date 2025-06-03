@@ -24,5 +24,5 @@ test('joinEnv() returns value from GCP', async () => {
     ['AUTH0_CLIENT_SECRET', 'envsync//testkey/latest'],
     ['']
   ]
-  assert.same(actual, expected)
+  assert.deepStrictEqual(actual, expected)
 })
