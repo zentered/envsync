@@ -15,13 +15,16 @@ test('joinEnv() returns value from GCP', async () => {
   NODE_ENV = development
   
   AUTH0_CLIENT_SECRET=envsync//testkey/latest
+  DATABASE_URL=postgresql://hello:world@localhost:5432/postgres?schema=example
   `
+
   const actual = await readExample(file)
   const expected = [
     ['GCP_PROJECT', 'quillcy'],
     ['NODE_ENV', 'development'],
     [''],
     ['AUTH0_CLIENT_SECRET', 'envsync//testkey/latest'],
+    ['DATABASE_URL', 'postgresql://hello:world@localhost:5432/postgres?schema=example'],
     ['']
   ]
   assert.deepStrictEqual(actual, expected)
