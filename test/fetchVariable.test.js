@@ -5,18 +5,17 @@ import esmock from 'esmock'
 test('fetchVariable() returns value from GCP', async () => {
   const { fetchVariable } = await esmock('../lib/fetchVariable.js', {
     '@google-cloud/secret-manager': {
-      SecretManagerServiceClient: () =>
-        class {
-          async accessSecretVersion(name) {
-            return Promise.resolve([
-              {
-                payload: {
-                  data: Buffer.from(name.name)
-                }
+      SecretManagerServiceClient: class {
+        async accessSecretVersion(name) {
+          return Promise.resolve([
+            {
+              payload: {
+                data: Buffer.from(name.name)
               }
-            ])
-          }
+            }
+          ])
         }
+      }
     }
   })
   const [key, value] = await fetchVariable(
@@ -31,18 +30,17 @@ test('fetchVariable() returns value from GCP', async () => {
 test('fetchVariable() returns version from GCP', async () => {
   const { fetchVariable } = await esmock('../lib/fetchVariable.js', {
     '@google-cloud/secret-manager': {
-      SecretManagerServiceClient: () =>
-        class {
-          async accessSecretVersion(name) {
-            return Promise.resolve([
-              {
-                payload: {
-                  data: Buffer.from(name.name)
-                }
+      SecretManagerServiceClient: class {
+        async accessSecretVersion(name) {
+          return Promise.resolve([
+            {
+              payload: {
+                data: Buffer.from(name.name)
               }
-            ])
-          }
+            }
+          ])
         }
+      }
     }
   })
   const [key, value] = await fetchVariable(
