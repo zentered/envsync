@@ -45,3 +45,16 @@ JWT_SECRET=abc123==
   assert.equal(result.get('DATABASE_URL'), 'postgresql://user:pass=123@localhost:5432/db')
   assert.equal(result.get('JWT_SECRET'), 'abc123==')
 })
+
+test('readEnv() preserves spaces in values', () => {
+  const envFile = `MESSAGE=Hello World
+DATABASE_URL=postgresql://user:my pass@localhost:5432/db
+QUOTED="value with spaces"
+`
+
+  const result = readEnv(envFile)
+
+  assert.equal(result.get('MESSAGE'), 'Hello World')
+  assert.equal(result.get('DATABASE_URL'), 'postgresql://user:my pass@localhost:5432/db')
+  assert.equal(result.get('QUOTED'), '"value with spaces"')
+})

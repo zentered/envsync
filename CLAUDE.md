@@ -56,10 +56,16 @@ Tests use `esmock` for mocking ES modules. The test suite includes:
   - Keys in existing `.env` that aren't in `.env.example` are preserved
   - Order: keys from `.env.example` appear first, followed by preserved keys
   - If no `.env` exists, creates a new file (original behavior)
+  - Uses Set-based lookup for O(n) performance when checking for duplicate keys
 - The GCP project ID is parsed from the first `GCP_PROJECT` or `GCLOUD_PROJECT_ID` variable in the file
 - Empty lines in `.env.example` are preserved in the output
 - The tool uses Node's native fs/promises API for file operations
 - Splitting on `=` uses a regex `/=(.*)/s` to only split on the first `=`, preserving `=` in values
-- Whitespace is stripped from both keys and values during parsing
+- Whitespace is only trimmed from the beginning/end of keys and values, preserving internal spaces
 - The `GCP_PROJECT` variable must appear **before** any `envsync//` variables, otherwise an error is thrown
 - All secrets are fetched concurrently using `Promise.all()` for performance
+- Error handling distinguishes between expected errors (file not found) and unexpected errors (permissions, corruption)
+
+### Development Notes
+- This project uses ESLint 8.x with the legacy `.eslintrc` config format
+- Dependency updates (especially ESLint 9.x upgrade) are kept in separate PRs to maintain focus and avoid breaking changes requiring config migration
