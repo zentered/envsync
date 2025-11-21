@@ -128,3 +128,44 @@ NEW_KEY=new-value
     await fs.rm(tmpDir, { recursive: true, force: true })
   }
 })
+
+test('merge behavior: preserves values with spaces', async () => {
+  const tmpDir = await fs.mkdtemp(path.join(__dirname, 'tmp-'))
+  const examplePath = path.join(tmpDir, '.env.example')
+  const envPath = path.join(tmpDir, '.env')
+
+  try {
+    // Create .env.example
+    await fs.writeFile(
+      examplePath,
+      `GCP_PROJECT=test-project
+MESSAGE=Hello World
+`
+    )
+
+    // Create existing .env with value containing spaces
+    await fs.writeFile(
+      envPath,
+      `GCP_PROJECT=test-project
+DATABASE_URL=postgresql://user:my pass@localhost:5432/db
+`
+    )
+
+    // Run envsync
+    await execFileAsync('node', [path.join(rootDir, 'index.js'), examplePath], {
+      cwd: tmpDir
+    })
+
+    // Read result
+    const result = await fs.readFile(envPath, 'utf8')
+    const lines = result.split('\n')
+
+    // Should preserve spaces in both new and existing values
+    assert.ok(lines.some((line) => line === 'MESSAGE=Hello World'))
+    assert.ok(
+      lines.some((line) => line === 'DATABASE_URL=postgresql://user:my pass@localhost:5432/db')
+    )
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true })
+  }
+})

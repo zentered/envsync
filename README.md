@@ -17,7 +17,13 @@ environment or update environment variables with on a single source of truth.
 `EnvSync` currently works with Google Cloud Platform (Secrets Manager). It reads
 the environment configuration from an `.env.example` file that is commonly used
 to help developers get started with a new project, fetches the values from the
-Google Cloud Platform (Secrets Manager) and writes them to a `.env` file.
+Google Cloud Platform (Secrets Manager) and intelligently merges them with your
+existing `.env` file.
+
+**Merge Behavior**: When you run `envsync`, it will:
+- Update keys from `.env.example` in your existing `.env` file
+- Preserve any custom keys in `.env` that aren't in `.env.example`
+- Create a new `.env` file if one doesn't exist
 
 For example, if you have the following `.env.example` file:
 
