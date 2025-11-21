@@ -23,12 +23,11 @@ try {
   // File doesn't exist, that's okay
 }
 
-// Merge: update existing keys with new values, preserve keys not in example
-const envArray = env.map(([key, value]) => {
+// Merge: update existing keys with new values from .env.example
+env.forEach(([key, value]) => {
   if (key !== '') {
     existingEnv.set(key, value)
   }
-  return [key, value]
 })
 
 // Convert Map back to array format, maintaining order: example keys come first
