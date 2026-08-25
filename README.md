@@ -21,6 +21,7 @@ Google Cloud Platform (Secrets Manager) and intelligently merges them with your
 existing `.env` file.
 
 **Merge Behavior**: When you run `envsync`, it will:
+
 - Update keys from `.env.example` in your existing `.env` file
 - Preserve any custom keys in `.env` that aren't in `.env.example`
 - Create a new `.env` file if one doesn't exist

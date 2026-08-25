@@ -7,12 +7,12 @@ import { readExample } from './lib/readExample.js'
 import { readEnv } from './lib/readEnv.js'
 import { joinEnv } from './lib/joinEnv.js'
 
-const args = process.argv.slice(2);
+const args = process.argv.slice(2)
 const filePath = args[0] || '.env.example'
 
 const exampleFile = await fs.readFile(filePath, 'utf8')
 const env = await readExample(exampleFile)
-const output = filePath.replace(".example", "")
+const output = filePath.replace('.example', '')
 
 // Check if .env file already exists
 let existingEnv = new Map()

@@ -17,7 +17,10 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/db?schema=public
   assert.equal(result.get('NODE_ENV'), 'development')
   assert.equal(result.get('API_URL'), 'http://localhost:3000')
   assert.equal(result.get('AUTH0_CLIENT_SECRET'), 'secret-value')
-  assert.equal(result.get('DATABASE_URL'), 'postgresql://user:pass@localhost:5432/db?schema=public')
+  assert.equal(
+    result.get('DATABASE_URL'),
+    'postgresql://user:pass@localhost:5432/db?schema=public'
+  )
   assert.equal(result.size, 5)
 })
 
@@ -42,7 +45,10 @@ JWT_SECRET=abc123==
 
   const result = readEnv(envFile)
 
-  assert.equal(result.get('DATABASE_URL'), 'postgresql://user:pass=123@localhost:5432/db')
+  assert.equal(
+    result.get('DATABASE_URL'),
+    'postgresql://user:pass=123@localhost:5432/db'
+  )
   assert.equal(result.get('JWT_SECRET'), 'abc123==')
 })
 
@@ -55,6 +61,9 @@ QUOTED="value with spaces"
   const result = readEnv(envFile)
 
   assert.equal(result.get('MESSAGE'), 'Hello World')
-  assert.equal(result.get('DATABASE_URL'), 'postgresql://user:my pass@localhost:5432/db')
+  assert.equal(
+    result.get('DATABASE_URL'),
+    'postgresql://user:my pass@localhost:5432/db'
+  )
   assert.equal(result.get('QUOTED'), '"value with spaces"')
 })

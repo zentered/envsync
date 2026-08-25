@@ -26,7 +26,7 @@
   "scripts": {
     "codestyle": "prettier --write \"./**/*.{js,md}\"",
     "dev": "node --watch --env-file=.env index.js",
-    "lint": "eslint --fix . --ext .js --ext md",
+    "lint": "eslint --fix .",
     "start": "node index.js",
     "test": "node --loader=esmock --test"
   },
@@ -49,22 +49,23 @@
     ]
   },
   "dependencies": {
-    "@google-cloud/secret-manager": "^6.1.1"
+    "@google-cloud/secret-manager": "^7.0.0"
   },
   "devDependencies": {
-    "@commitlint/cli": "^20.4.3",
-    "@commitlint/config-conventional": "^20.4.3",
-    "eslint": "8.57.1",
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
+    "@eslint/js": "^10.0.1",
+    "@eslint/markdown": "^8.0.3",
+    "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-json": "^4.0.1",
-    "eslint-plugin-markdown": "^5.1.0",
-    "eslint-plugin-node": "^11.1.0",
-    "esmock": "^2.7.3",
+    "eslint-plugin-json": "^5.0.0",
+    "eslint-plugin-n": "^18.3.0",
+    "esmock": "^2.7.6",
     "husky": "^9.1.7",
-    "lint-staged": "^16.3.2",
-    "prettier": "^3.8.1"
+    "lint-staged": "^17.3.0",
+    "prettier": "^3.9.6"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13.0"
   }
 }
