@@ -47,7 +47,9 @@ PRESERVED_KEY=should-remain
 
     // Should preserve OLD_KEY and PRESERVED_KEY
     assert.ok(lines.some((line) => line.includes('OLD_KEY=old-value')))
-    assert.ok(lines.some((line) => line.includes('PRESERVED_KEY=should-remain')))
+    assert.ok(
+      lines.some((line) => line.includes('PRESERVED_KEY=should-remain'))
+    )
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true })
   }
@@ -163,7 +165,10 @@ DATABASE_URL=postgresql://user:my pass@localhost:5432/db
     // Should preserve spaces in both new and existing values
     assert.ok(lines.some((line) => line === 'MESSAGE=Hello World'))
     assert.ok(
-      lines.some((line) => line === 'DATABASE_URL=postgresql://user:my pass@localhost:5432/db')
+      lines.some(
+        (line) =>
+          line === 'DATABASE_URL=postgresql://user:my pass@localhost:5432/db'
+      )
     )
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true })
