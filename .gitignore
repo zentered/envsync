@@ -36,3 +36,4 @@ coverage
 # dotenv environment variables file
 .env
 keyfile.json
+.claude/worktrees
