@@ -27,7 +27,6 @@ export default defineConfig([
     }
   },
   {
-    files: ['**/*.json'],
     ...jsonPlugin.configs.recommended
   },
   {
