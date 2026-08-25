@@ -8,21 +8,44 @@ on:
 permissions:
   contents: read
 
+# Never let two releases compute a version from the same history at once.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   pulish:
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-      id-token: write
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    if: github.repository == 'zentered/envsync'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the release tag and create the GitHub release
+      issues: write # comment on issues closed by the release
+      pull-requests: write # comment on pull requests included in the release
+      id-token: write # OIDC for npm trusted publishing and provenance
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      # fetch-depth: 0 so semantic-release can read every tag and commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          node-version: 24
+          fetch-depth: 0
+
+      # registry-url points npm at the public registry. NODE_AUTH_TOKEN is
+      # deliberately never set: any token in the environment makes npm fall
+      # back to the legacy token flow instead of OIDC trusted publishing.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      # Trusted publishing needs npm >= 11.5.1. npm 12 additionally blocks
+      # dependency install scripts, git dependencies and remote tarballs by
+      # default, which is what keeps `npm ci` from running third-party code
+      # in the same job that holds the OIDC token.
+      - run: npm install -g npm@12
+
       - run: npm ci
-      # - run: npm test
+      - run: npm test
+
       - run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
