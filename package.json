@@ -28,7 +28,8 @@
     "dev": "node --watch --env-file=.env index.js",
     "lint": "eslint --fix .",
     "start": "node index.js",
-    "test": "node --loader=esmock --test"
+    "test": "node --loader=esmock --test",
+    "prepare": "husky"
   },
   "commitlint": {
     "extends": [
