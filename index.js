@@ -96,7 +96,9 @@ async function main() {
 
   let contents
   try {
-    contents = joinEnv(mergedEnv)
+    // end with a newline: older util.parseEnv versions misread a multi-line
+    // value on the last line
+    contents = joinEnv(mergedEnv).replace(/\n?$/, '\n')
   } catch (err) {
     // a value that cannot be written safely: leave the existing file alone
     console.error(err.message)

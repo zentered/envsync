@@ -65,3 +65,15 @@ test('refused value: prints the key, exits 1 and leaves .env untouched', async (
     ])
   })
 })
+
+test('the written .env always ends with a newline', async () => {
+  await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
+    // no trailing newline in the example, and a multi-line value last
+    await fs.writeFile(examplePath, 'GCP_PROJECT=p\nPEM="a\nb"')
+
+    await run(tmpDir, examplePath)
+
+    const content = await fs.readFile(envPath, 'utf8')
+    assert.equal(content, "GCP_PROJECT=p\nPEM='a\nb'\n")
+  })
+})

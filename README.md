@@ -86,6 +86,10 @@ belong in the environment, not in the codebase. See
   argument. The `.env` example file must end in `.example`
 - Usage: `npx envsync .env.development.example` will create `.env.development`
 
+Note: apps that read the generated `.env` with `util.parseEnv` or `--env-file`
+should run Node 22.16 or later, or Node 24 or later. Older parsers can read
+multi-line values differently.
+
 ## Contributing
 
 See [CONTRIBUTING](CONTRIBUTING.md).

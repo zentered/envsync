@@ -6,6 +6,7 @@ import path from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { joinEnv } from '../lib/joinEnv.js'
+import esmock from 'esmock'
 import { readEnv } from '../lib/readEnv.js'
 
 const execFileAsync = promisify(execFile)
@@ -301,6 +302,24 @@ test('joinEnv() property: every file reads back exactly or is refused, and is in
       values,
       entries.map(([, value]) => value),
       label
+    )
+  }
+})
+
+test('joinEnv() checks the whole file for export keys too', async () => {
+  // Stub the parser so the whole-file read disagrees with what was written.
+  // A value alone is parsed as `K=...`, which stays real.
+  const { joinEnv: stubbed } = await esmock('../lib/joinEnv.js', {
+    '../lib/readEnv.js': {
+      readEnv: (text) => (text.startsWith('K=') ? readEnv(text) : new Map())
+    }
+  })
+
+  for (const key of ['API_KEY', 'export API_KEY']) {
+    assert.throws(
+      () => stubbed([[key, 'v']]),
+      /Cannot write API_KEY: .*does not read back/,
+      key
     )
   }
 })
