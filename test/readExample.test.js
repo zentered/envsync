@@ -102,3 +102,28 @@ test('readExample() keeps the text of a comment line as is', async () => {
 
   assert.deepEqual(actual[1], ['# EXAMPLE', `don't use "$HOME" # x`])
 })
+
+test('readExample() never fetches for a commented line', async () => {
+  const fetched = []
+  const { readExample } = await esmock('../lib/readExample.js', {
+    '../lib/fetchVariable.js': {
+      fetchVariable: async (gcpProjectId, key) => {
+        fetched.push(key)
+        return [key, 'fetched']
+      }
+    }
+  })
+
+  const actual = await readExample(`GCP_PROJECT=quillcy
+#OLD_API_KEY=envsync//old-api-key
+  # SPACED=envsync//spaced
+K=envsync//k
+`)
+
+  assert.deepEqual(fetched, ['K'])
+  assert.deepEqual(actual.slice(1, 4), [
+    ['#OLD_API_KEY', 'envsync//old-api-key'],
+    ['# SPACED', 'envsync//spaced'],
+    ['K', 'fetched']
+  ])
+})

@@ -166,7 +166,7 @@ test('joinEnv() passes comment entries through unchanged, with no checks', () =>
 
   assert.equal(
     actual,
-    `# EXAMPLE=don't use $HOME "or" \`x\` \\ # y\n# plain note=undefined\nK=v`
+    `# EXAMPLE=don't use $HOME "or" \`x\` \\ # y\n# plain note\nK=v`
   )
 })
 
@@ -322,4 +322,46 @@ test('joinEnv() checks the whole file for export keys too', async () => {
       key
     )
   }
+})
+
+test('joinEnv() refuses a comment entry whose value has a line break', () => {
+  for (const value of ['x\nNODE_OPTIONS=--require /tmp/p.js', 'x\rY=1']) {
+    assert.throws(
+      () =>
+        joinEnv([
+          ['GCP_PROJECT', 'p'],
+          ['#OLD_KEY', value],
+          ['B', '2']
+        ]),
+      (err) => {
+        assert.match(err.message, /#OLD_KEY/)
+        assert.doesNotMatch(err.message, /NODE_OPTIONS/)
+        return true
+      },
+      JSON.stringify(value)
+    )
+  }
+})
+
+test('joinEnv() throws when the whole file reads back a key that was not written', async () => {
+  const { joinEnv: stubbed } = await esmock('../lib/joinEnv.js', {
+    '../lib/readEnv.js': {
+      readEnv: (text) =>
+        text.startsWith('K=')
+          ? readEnv(text)
+          : new Map([
+              ['K2', 'x'],
+              ['JUNK', '1']
+            ])
+    }
+  })
+
+  assert.throws(
+    () => stubbed([['K2', 'x']]),
+    (err) => {
+      assert.match(err.message, /not written/)
+      assert.doesNotMatch(err.message, /JUNK/)
+      return true
+    }
+  )
 })
