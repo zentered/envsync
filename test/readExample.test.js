@@ -32,3 +32,21 @@ test('joinEnv() returns value from GCP', async () => {
   ]
   assert.deepStrictEqual(actual, expected)
 })
+
+test('readExample() unquotes quoted literal values', async () => {
+  const { readExample } = await esmock('../lib/readExample.js', {
+    '../lib/fetchVariable.js': {
+      fetchVariable: async (gcpProjectId, key, value) => [key, value]
+    }
+  })
+
+  const actual = await readExample(`GCP_PROJECT=quillcy
+QUOTED="value with # hash"
+`)
+
+  assert.deepEqual(actual, [
+    ['GCP_PROJECT', 'quillcy'],
+    ['QUOTED', 'value with # hash'],
+    ['']
+  ])
+})

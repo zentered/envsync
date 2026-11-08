@@ -90,6 +90,9 @@ Tests use `esmock` for mocking ES modules. The test suite includes:
 - The tool uses Node's native fs/promises API for file operations
 - Splitting on `=` uses a regex `/=(.*)/s` to only split on the first `=`,
   preserving `=` in values
+- Values are quoted on write only when needed (newline, `#`, quotes,
+  backslash, leading or trailing whitespace) so that `node --env-file` and
+  dotenv read them back unchanged. `readEnv()` parses quoted, multi-line values
 - Whitespace is only trimmed from the beginning/end of keys and values,
   preserving internal spaces
 - The `GCP_PROJECT` variable must appear **before** any `envsync//` variables,
