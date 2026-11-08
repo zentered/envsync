@@ -20,26 +20,34 @@ const STALE_TMP_MS = 10 * 60 * 1000
 
 // Remove temp files that a crashed run left next to the output. Only files
 // older than STALE_TMP_MS are removed, because a newer one can belong to a run
-// that is still writing. Best effort: a failure here must not stop the sync.
+// that is still writing. Best effort: a failure here must not stop the sync,
+// and one bad entry must not stop the removal of the others.
 async function removeStaleTmpFiles(output) {
   const dir = path.dirname(output)
   const prefix = `${path.basename(output)}.envsync-`
+  let names
   try {
-    for (const name of await fs.readdir(dir)) {
-      if (
-        !name.startsWith(prefix) ||
-        !/^[0-9a-f]{12}\.tmp$/.test(name.slice(prefix.length))
-      ) {
-        continue
-      }
+    names = await fs.readdir(dir)
+  } catch {
+    return
+  }
+  for (const name of names) {
+    if (
+      !name.startsWith(prefix) ||
+      !/^[0-9a-f]{12}\.tmp$/.test(name.slice(prefix.length))
+    ) {
+      continue
+    }
+    try {
       const file = path.join(dir, name)
-      const { mtimeMs } = await fs.stat(file)
+      // lstat: a symlink is judged by its own mtime, even when it dangles
+      const { mtimeMs } = await fs.lstat(file)
       if (Date.now() - mtimeMs > STALE_TMP_MS) {
         await fs.rm(file, { force: true })
       }
+    } catch {
+      // skip this entry
     }
-  } catch {
-    // ignore
   }
 }
 

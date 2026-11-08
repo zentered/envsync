@@ -131,6 +131,37 @@ test('file mode: stale temp files older than 10 minutes are removed, fresh ones 
   })
 })
 
+test('file mode: one bad sweep entry does not stop the removal of the others', async () => {
+  await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
+    await fs.writeFile(examplePath, example)
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000)
+    // a dangling symlink with a matching name, next to old stale files on
+    // both sides of it in name order
+    const names = [
+      '.env.envsync-000000000000.tmp',
+      '.env.envsync-555500000000.tmp',
+      '.env.envsync-aaaa00000000.tmp',
+      '.env.envsync-ffff00000000.tmp'
+    ]
+    const link = path.join(tmpDir, names[1])
+    await fs.symlink(path.join(tmpDir, 'missing'), link)
+    await fs.lutimes(link, hourAgo, hourAgo)
+    for (const name of [names[0], names[2], names[3]]) {
+      const file = path.join(tmpDir, name)
+      await fs.writeFile(file, 'OLD_SECRET=leftover\n', { mode: 0o600 })
+      await fs.utimes(file, hourAgo, hourAgo)
+    }
+
+    await run(tmpDir, examplePath)
+
+    assert.deepEqual((await fs.readdir(tmpDir)).sort(), [
+      '.env',
+      '.env.example'
+    ])
+    assert.match(await fs.readFile(envPath, 'utf8'), /NEW_KEY=new-value/)
+  })
+})
+
 test('file mode: an unlistable output directory does not stop the write', async () => {
   await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
     await fs.writeFile(examplePath, example)
