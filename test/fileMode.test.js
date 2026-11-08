@@ -86,20 +86,23 @@ test('file mode: a symlinked .env is replaced, the target is untouched', async (
 })
 
 test('file mode: a write error prints a message, exits 1 and leaves no temp file', async () => {
-  await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
+  await withTmpDir(async ({ tmpDir, examplePath }) => {
     await fs.writeFile(examplePath, example)
-    // rename() of a file over a directory fails
-    await fs.mkdir(envPath)
+    // creating the temp file in a read-only directory fails
+    await fs.chmod(tmpDir, 0o500)
 
-    await assert.rejects(run(tmpDir, examplePath), (err) => {
-      assert.equal(err.code, 1)
-      assert.match(err.stderr, /Could not write .*\.env: /)
-      assert.doesNotMatch(err.stderr, /\n\s+at /)
-      return true
-    })
+    try {
+      await assert.rejects(run(tmpDir, examplePath), (err) => {
+        assert.equal(err.code, 1)
+        assert.match(err.stderr, /Could not write .*\.env: /)
+        assert.doesNotMatch(err.stderr, /\n\s+at /)
+        return true
+      })
+    } finally {
+      await fs.chmod(tmpDir, 0o700)
+    }
 
-    const files = (await fs.readdir(tmpDir)).sort()
-    assert.deepEqual(files, ['.env', '.env.example'])
+    assert.deepEqual((await fs.readdir(tmpDir)).sort(), ['.env.example'])
   })
 })
 
@@ -121,23 +124,53 @@ test('file mode: stale temp files from a crashed run are removed on the next run
 })
 
 test('file mode: a failing temp file cleanup does not hide the write error', async () => {
-  await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
+  await withTmpDir(async ({ tmpDir, examplePath }) => {
     await fs.writeFile(examplePath, example)
-    await fs.mkdir(envPath)
+    await fs.chmod(tmpDir, 0o500)
     const failRm =
       "data:text/javascript,import fs from 'fs/promises';" +
       "fs.rm = async () => { throw new Error('rm failed') }"
 
-    await assert.rejects(
-      execFileAsync('node', ['--import', failRm, indexPath, examplePath], {
-        cwd: tmpDir
-      }),
-      (err) => {
+    try {
+      await assert.rejects(
+        execFileAsync('node', ['--import', failRm, indexPath, examplePath], {
+          cwd: tmpDir
+        }),
+        (err) => {
+          assert.equal(err.code, 1)
+          assert.match(err.stderr, /Could not write .*\.env: /)
+          assert.doesNotMatch(err.stderr, /rm failed/)
+          return true
+        }
+      )
+    } finally {
+      await fs.chmod(tmpDir, 0o700)
+    }
+  })
+})
+
+test('file mode: an unreadable existing .env aborts and is left untouched', async () => {
+  await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
+    await fs.writeFile(examplePath, example)
+    const original = 'CUSTOM_KEY=custom-value\n'
+    await fs.writeFile(envPath, original)
+    await fs.chmod(envPath, 0o000)
+
+    try {
+      await assert.rejects(run(tmpDir, examplePath), (err) => {
         assert.equal(err.code, 1)
-        assert.match(err.stderr, /Could not write .*\.env: /)
-        assert.doesNotMatch(err.stderr, /rm failed/)
+        assert.match(err.stderr, /Could not read existing .*\.env: /)
+        assert.doesNotMatch(err.stderr, /\n\s+at /)
         return true
-      }
-    )
+      })
+    } finally {
+      await fs.chmod(envPath, 0o644)
+    }
+
+    assert.equal(await fs.readFile(envPath, 'utf8'), original)
+    assert.deepEqual((await fs.readdir(tmpDir)).sort(), [
+      '.env',
+      '.env.example'
+    ])
   })
 })
