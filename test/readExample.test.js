@@ -60,3 +60,31 @@ EMPTY=
     ['']
   ])
 })
+
+test('readExample() keeps a quoted value that spans lines as one entry', async () => {
+  const { readExample } = await esmock('../lib/readExample.js', {
+    '../lib/fetchVariable.js': {
+      fetchVariable: async (gcpProjectId, key, value) => [key, value]
+    }
+  })
+
+  const actual = await readExample(`GCP_PROJECT=quillcy
+A="line1
+line2 # kept"
+B=2
+C='x
+y' # note
+UNBALANCED="oops
+D=4
+`)
+
+  assert.deepEqual(actual, [
+    ['GCP_PROJECT', 'quillcy'],
+    ['A', 'line1\nline2 # kept'],
+    ['B', '2'],
+    ['C', 'x\ny'],
+    ['UNBALANCED', '"oops'],
+    ['D', '4'],
+    ['']
+  ])
+})

@@ -97,6 +97,9 @@ Tests use `esmock` for mocking ES modules. The test suite includes:
   Otherwise it tries double quotes with `\n` escaped, single quotes, then double
   quotes with raw newlines. A value no form can carry (CR, or `'` with `"`)
   throws an error naming the key. Dotenv compatibility is not verified
+- `util.parseEnv` differs across Node versions. Node 22.13 uses an older parser
+  (checked: it reads `K="a\nb=c"` as two keys, and unbalanced quotes differently
+  from Node 26). The tests pass on Node 24 and 26, not on 22.13
 - Whitespace is only trimmed from the beginning/end of keys and values,
   preserving internal spaces
 - The `GCP_PROJECT` variable must appear **before** any `envsync//` variables,
