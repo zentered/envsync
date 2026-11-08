@@ -10,10 +10,18 @@ import { readEnv } from '../lib/readEnv.js'
 
 const execFileAsync = promisify(execFile)
 
-// Parse a .env string the way `node --env-file` does, in a child process.
-async function parseWithNode(content) {
+async function withTmpDir(fn) {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'envsync-'))
   try {
+    return await fn(tmpDir)
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true })
+  }
+}
+
+// Parse a .env string the way `node --env-file` does, in a child process.
+const parseWithNode = (content) =>
+  withTmpDir(async (tmpDir) => {
     const file = path.join(tmpDir, '.env')
     await fs.writeFile(file, content)
     const { stdout } = await execFileAsync(
@@ -22,10 +30,32 @@ async function parseWithNode(content) {
       { cwd: tmpDir }
     )
     return JSON.parse(stdout)
-  } finally {
-    await fs.rm(tmpDir, { recursive: true, force: true })
-  }
-}
+  })
+
+// Source a .env string in sh. `INJ` is a function that records that it ran.
+// Returns how often INJ ran and the value of each variable.
+const sourceInSh = (content, keys) =>
+  withTmpDir(async (tmpDir) => {
+    await fs.writeFile(path.join(tmpDir, 'f'), content)
+    const marker = path.join(tmpDir, 'marker')
+    const printAll = keys.map((key) => `printf '%s\\0' "$${key}"`).join('; ')
+    let stdout
+    try {
+      ;({ stdout } = await execFileAsync(
+        'sh',
+        ['-c', `INJ() { echo ran >> '${marker}'; }; . ./f; ${printAll}`],
+        { cwd: tmpDir }
+      ))
+    } catch (err) {
+      // a syntax error in the file is also a failure
+      throw new Error(`sh failed: ${err.stderr}`, { cause: err })
+    }
+    const runs = await fs
+      .readFile(marker, 'utf8')
+      .then((text) => text.split('\n').filter(Boolean).length)
+      .catch(() => 0)
+    return { runs, values: stdout.split('\0').slice(0, keys.length) }
+  })
 
 const pem =
   '-----BEGIN PRIVATE KEY-----\nMIIEvQIBADAN\nabc/+=\n-----END PRIVATE KEY-----\n'
@@ -35,93 +65,87 @@ test('joinEnv() returns value from GCP', () => {
   assert.equal(actual, 'testkey=testvalue')
 })
 
-test('joinEnv() leaves values unquoted when they read back unchanged', () => {
-  const values = [
-    'Hello World',
-    'postgresql://user:pass=1@localhost:5432/db?schema=public',
-    '',
-    'say "hi" and it\'s fine',
-    'C:\\path\\new'
-  ]
+test('joinEnv() writes only shell-safe characters bare', () => {
+  const values = ['testvalue', 'a_b-c.d/e:f=g@h%i+j,k', 'ABC123', '']
   for (const value of values) {
     assert.equal(joinEnv([['K', value]]), `K=${value}`, JSON.stringify(value))
   }
 })
 
-test('joinEnv() escapes newlines in a multi-line value', () => {
-  const actual = joinEnv([['KEY', pem]])
-  assert.equal(actual.split('\n').length, 1)
-  assert.equal(
-    actual,
-    'KEY="-----BEGIN PRIVATE KEY-----\\nMIIEvQIBADAN\\nabc/+=\\n-----END PRIVATE KEY-----\\n"'
-  )
-})
-
-test('joinEnv() quotes a value containing #', () => {
-  assert.equal(joinEnv([['KEY', 'pass#word']]), 'KEY="pass#word"')
-})
-
-test('joinEnv() quotes a value with leading or trailing whitespace', () => {
-  assert.equal(joinEnv([['KEY', ' padded ']]), 'KEY=" padded "')
-})
-
-test('joinEnv() quotes a value that starts and ends with a quote', () => {
-  assert.equal(joinEnv([['KEY', '"x"']]), `KEY='"x"'`)
-})
-
-test('joinEnv() uses single quotes for a multi-line value with backslashes', () => {
-  assert.equal(joinEnv([['KEY', 'a\\nb\nc']]), `KEY='a\\nb\nc'`)
-})
-
-test('joinEnv() single-quotes a value with $ or a backtick', () => {
+test('joinEnv() single-quotes every other value', () => {
   const values = [
+    'Hello World',
+    'postgresql://user:pass=1@localhost:5432/db?schema=public',
+    'abc; printf injected',
+    'x;INJ',
+    'a|b',
+    'a&b',
+    'a>b',
+    '(x)',
     'abc$(printf injected)#',
     '$HOME',
     '${X}',
-    'a$b',
     'a`b`c',
-    'multi\nline $X'
+    'pass#word',
+    ' padded ',
+    '"x"',
+    'say "hi"',
+    'C:\\path\\new',
+    'literal \\n here',
+    pem
   ]
   for (const value of values) {
     assert.equal(joinEnv([['K', value]]), `K='${value}'`, JSON.stringify(value))
   }
 })
 
-test('joinEnv() output with $ does not run a command when sourced by a shell', async () => {
-  const out = joinEnv([['PASSWORD', 'abc$(printf injected)#']])
-  const { stdout } = await execFileAsync('sh', [
-    '-c',
-    `${out}; printf %s "$PASSWORD"`
-  ])
-  assert.equal(stdout, 'abc$(printf injected)#')
+test('joinEnv() output is inert and exact when sourced by a shell', async () => {
+  const values = {
+    A: 'abc; printf injected',
+    B: 'x;INJ',
+    C: 'a|b',
+    D: 'a&b',
+    E: 'Hello World',
+    F: 'a>b',
+    G: '(x)',
+    H: 'abc$(INJ)#',
+    I: '`INJ`',
+    J: pem,
+    K: "it's fine",
+    L: 'plain'
+  }
+  const out = joinEnv(Object.entries(values))
+
+  const { runs, values: sh } = await sourceInSh(out, Object.keys(values))
+
+  assert.equal(runs, 0)
+  assert.deepEqual(sh, Object.values(values))
 })
 
-test('joinEnv() refuses $ or a backtick together with a single quote, naming the key and shell expansion', () => {
-  for (const value of ["it's $HOME", "it's `x`"]) {
+test('joinEnv() uses double quotes for a value with a single quote when that is inert', () => {
+  assert.equal(joinEnv([['K', "it's fine"]]), `K="it's fine"`)
+  assert.equal(joinEnv([['K', "it's\nmulti # x"]]), `K="it's\nmulti # x"`)
+})
+
+test('joinEnv() refuses a value with a single quote and no inert form, naming the key', () => {
+  for (const value of [
+    `it's "both" # x`,
+    "it's $HOME",
+    "it's `x`",
+    "it's a\\b"
+  ]) {
     assert.throws(
-      () => joinEnv([['SH_KEY', value]]),
+      () => joinEnv([['BAD_KEY', value]]),
       (err) => {
-        assert.match(err.message, /SH_KEY/)
+        assert.match(err.message, /BAD_KEY/)
+        assert.match(err.message, /single quote/)
         assert.match(err.message, /shell/i)
-        assert.doesNotMatch(err.message, /HOME/)
+        assert.doesNotMatch(err.message, /HOME|both/)
         return true
       },
       value
     )
   }
-})
-
-test('joinEnv() refuses a value no quote style can carry, naming the key and why', () => {
-  assert.throws(
-    () => joinEnv([['BAD_KEY', `it's "both" # x`]]),
-    (err) => {
-      assert.match(err.message, /BAD_KEY/)
-      assert.match(err.message, /single quote/)
-      assert.match(err.message, /double quote/)
-      assert.match(err.message, /backtick/i)
-      return true
-    }
-  )
   assert.throws(
     () => joinEnv([['CR_KEY', 'a\rb']]),
     (err) => {
@@ -129,6 +153,19 @@ test('joinEnv() refuses a value no quote style can carry, naming the key and why
       assert.match(err.message, /carriage return/)
       return true
     }
+  )
+})
+
+test('joinEnv() passes comment entries through unchanged, with no checks', () => {
+  const actual = joinEnv([
+    ['# EXAMPLE', `don't use $HOME "or" \`x\` \\ # y`],
+    ['# plain note', undefined],
+    ['K', 'v']
+  ])
+
+  assert.equal(
+    actual,
+    `# EXAMPLE=don't use $HOME "or" \`x\` \\ # y\n# plain note=undefined\nK=v`
   )
 })
 
@@ -179,18 +216,12 @@ function prng(seed) {
   }
 }
 
-// Node drops CR. With a `'` the only quote left is `"`, which cannot hold a
-// `"` or a literal backslash-n (Node unescapes it). A `$` or backtick may only
-// be single-quoted, which cannot hold a `'`.
+// Node drops CR. A value with a `'` has no form that Node reads exactly and a
+// shell does not expand when it also has `"`, `\`, `$` or a backtick.
 const isRefusable = (value) =>
-  value.includes('\r') ||
-  (value.includes("'") &&
-    (value.includes('"') ||
-      value.includes('\\n') ||
-      value.includes('$') ||
-      value.includes('`')))
+  value.includes('\r') || (value.includes("'") && /["\\$`]/.test(value))
 
-test('joinEnv() property: every file reads back exactly or is refused', () => {
+test('joinEnv() property: every file reads back exactly or is refused, and is inert in sh', async () => {
   const alphabet = [
     '\n',
     '\r',
@@ -203,10 +234,24 @@ test('joinEnv() property: every file reads back exactly or is refused', () => {
     '$',
     ' ',
     '\t',
+    ';',
+    '|',
+    '&',
+    '>',
+    '(',
+    ')',
+    '*',
+    '?',
+    '~',
+    '!',
     'a',
     'b',
     'n',
-    'export'
+    'export',
+    'INJ',
+    ';INJ;',
+    '$(INJ)',
+    '`INJ`'
   ]
   const random = prng(20260109)
   const randomValue = () => {
@@ -218,6 +263,7 @@ test('joinEnv() property: every file reads back exactly or is refused', () => {
     return value
   }
   let refused = 0
+  const shellSample = []
 
   for (let run = 0; run < 5000; run++) {
     const entries = []
@@ -232,21 +278,29 @@ test('joinEnv() property: every file reads back exactly or is refused', () => {
       refused++
       const key = err.message.match(/Cannot write (KEY\d)/)?.[1]
       assert.ok(key, `unexpected error ${err.message} for ${label}`)
-      // refusal is only allowed for a value Node cannot carry
+      // refusal is only allowed for a value no safe form can carry
       const value = entries.find(([k]) => k === key)[1]
       assert.ok(isRefusable(value), `refused a writable value in ${label}`)
       continue
     }
 
     assert.deepEqual([...readEnv(out)], entries, label)
-    // a shell must never expand a value, so $ and backtick values are single-quoted
-    for (const [key, value] of entries) {
-      if (/[$`]/.test(value)) {
-        assert.ok(`\n${out}`.includes(`\n${key}='`), label)
-      }
-    }
+    if (shellSample.length < 300) shellSample.push([entries, out])
   }
 
   // the property test must exercise both outcomes
   assert.ok(refused > 0)
+
+  // a sample of the written files is sourced in sh: nothing runs, values exact
+  for (const [entries, out] of shellSample) {
+    const keys = entries.map(([key]) => key)
+    const { runs, values } = await sourceInSh(out, keys)
+    const label = JSON.stringify(entries)
+    assert.equal(runs, 0, `INJ ran for ${label}`)
+    assert.deepEqual(
+      values,
+      entries.map(([, value]) => value),
+      label
+    )
+  }
 })

@@ -97,19 +97,21 @@ Tests use `esmock` for mocking ES modules. The test suite includes:
 - `lib/readEnv.js` parses `.env` content with Node's `util.parseEnv`, the parser
   behind `node --env-file`. Quotes, comments and multi-line values read exactly
   as Node reads them
-- `lib/joinEnv.js` writes a value as is when Node reads it back unchanged.
-  Otherwise it tries double quotes with `\n` escaped, single quotes, then double
-  quotes with raw newlines. A value with `$` or a backtick is only ever
-  single-quoted, so a shell that sources the file never expands it. A value no
-  form can carry throws an error naming the key. Refused values:
+- `lib/joinEnv.js` writes a `.env` that Node reads back exactly and that is safe
+  to source in a shell. A value is bare only when every character is in
+  `[A-Za-z0-9_@%+=:,./-]` (or it is empty). Otherwise it is single-quoted, with
+  raw newlines for multi-line values. A value with a `'` and none of `"`, `\`,
+  `$` or a backtick is double-quoted instead. Comment entries from
+  `.env.example` are written as they are. Every written value must also pass a
+  whole-file `util.parseEnv` check. Refused values throw an error naming the
+  key:
   - CR (Node drops it)
-  - `'` together with `$` or a backtick (shell expansion)
-  - `'` together with `"` or a literal backslash-n, when the value needs quotes
-    (only backticks would carry it, and those allow command substitution)
+  - `'` together with `"`, `\`, `$` or a backtick (no form is both exact for
+    Node and inert in a shell; backtick quotes are not used because they allow
+    command substitution)
 
-  An existing value that can only be written in backticks, such as one with `'`
-  and `"` plus `#`, is refused on every sync until it is edited by hand. Dotenv
-  compatibility is not verified
+  An existing value of that kind is refused on every sync until it is edited by
+  hand. Dotenv compatibility is not verified
 
 - Whitespace is only trimmed from the beginning/end of keys and values,
   preserving internal spaces

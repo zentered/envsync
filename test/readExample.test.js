@@ -88,3 +88,17 @@ D=4
     ['']
   ])
 })
+
+test('readExample() keeps the text of a comment line as is', async () => {
+  const { readExample } = await esmock('../lib/readExample.js', {
+    '../lib/fetchVariable.js': {
+      fetchVariable: async (gcpProjectId, key, value) => [key, value]
+    }
+  })
+
+  const actual = await readExample(`GCP_PROJECT=quillcy
+# EXAMPLE=don't use "$HOME" # x
+`)
+
+  assert.deepEqual(actual[1], ['# EXAMPLE', `don't use "$HOME" # x`])
+})

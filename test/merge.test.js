@@ -180,11 +180,11 @@ DATABASE_URL=postgresql://user:my pass@localhost:5432/db
     const lines = result.split('\n')
 
     // Should preserve spaces in both new and existing values
-    assert.ok(lines.some((line) => line === 'MESSAGE=Hello World'))
+    assert.ok(lines.some((line) => line === "MESSAGE='Hello World'"))
     assert.ok(
       lines.some(
         (line) =>
-          line === 'DATABASE_URL=postgresql://user:my pass@localhost:5432/db'
+          line === "DATABASE_URL='postgresql://user:my pass@localhost:5432/db'"
       )
     )
   } finally {
