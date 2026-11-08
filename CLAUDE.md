@@ -30,7 +30,9 @@ values from GCP Secrets Manager, and writes them to a `.env` file.
 
 ### Requirements
 
-- Node.js >= 22
+- Node.js `^22.21.0 || >=24.10.0`. Node 22.13 to 22.20 and 23.x ship an older
+  `util.parseEnv` that misreads quoted multi-line values (checked on 22.13 and
+  23.11: `K="a\nb=c"` becomes two keys)
 - A `keyfile.json` for GCP service account authentication must be present in the
   working directory
 - The first variable in `.env.example` must be `GCP_PROJECT` or
@@ -97,9 +99,6 @@ Tests use `esmock` for mocking ES modules. The test suite includes:
   Otherwise it tries double quotes with `\n` escaped, single quotes, then double
   quotes with raw newlines. A value no form can carry (CR, or `'` with `"`)
   throws an error naming the key. Dotenv compatibility is not verified
-- `util.parseEnv` differs across Node versions. Node 22.13 uses an older parser
-  (checked: it reads `K="a\nb=c"` as two keys, and unbalanced quotes differently
-  from Node 26). The tests pass on Node 24 and 26, not on 22.13
 - Whitespace is only trimmed from the beginning/end of keys and values,
   preserving internal spaces
 - The `GCP_PROJECT` variable must appear **before** any `envsync//` variables,
