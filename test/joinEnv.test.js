@@ -67,7 +67,14 @@ test('joinEnv() returns value from GCP', () => {
 })
 
 test('joinEnv() writes only shell-safe characters bare', () => {
-  const values = ['testvalue', 'a_b-c.d/e:f=g@h%i+j,k', 'ABC123', '']
+  const values = [
+    'testvalue',
+    'a_b-c.d/e:f=g@h%i+j,k',
+    'ABC123',
+    '',
+    'postgresql://user:pass=1@localhost:5432/db?schema=public',
+    'a?b*c[1]d^e{f}'
+  ]
   for (const value of values) {
     assert.equal(joinEnv([['K', value]]), `K=${value}`, JSON.stringify(value))
   }
@@ -76,7 +83,6 @@ test('joinEnv() writes only shell-safe characters bare', () => {
 test('joinEnv() single-quotes every other value', () => {
   const values = [
     'Hello World',
-    'postgresql://user:pass=1@localhost:5432/db?schema=public',
     'abc; printf injected',
     'x;INJ',
     'a|b',
@@ -107,6 +113,7 @@ test('joinEnv() output is inert and exact when sourced by a shell', async () => 
     C: 'a|b',
     D: 'a&b',
     E: 'Hello World',
+    M: 'https://x.test/p?a=1&b=*[2]^{3}',
     F: 'a>b',
     G: '(x)',
     H: 'abc$(INJ)#',
@@ -245,6 +252,11 @@ test('joinEnv() property: every file reads back exactly or is refused, and is in
     '?',
     '~',
     '!',
+    '[',
+    ']',
+    '^',
+    '{',
+    '}',
     'a',
     'b',
     'n',
