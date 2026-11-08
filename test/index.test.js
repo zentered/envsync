@@ -59,5 +59,9 @@ test('refused value: prints the key, exits 1 and leaves .env untouched', async (
     })
 
     assert.equal(await fs.readFile(envPath, 'utf8'), original)
+    assert.deepEqual((await fs.readdir(tmpDir)).sort(), [
+      '.env',
+      '.env.example'
+    ])
   })
 })
