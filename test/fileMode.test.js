@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'fs/promises'
+import os from 'os'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { execFile } from 'child_process'
@@ -8,50 +9,96 @@ import { promisify } from 'util'
 
 const execFileAsync = promisify(execFile)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const rootDir = path.join(__dirname, '..')
+const indexPath = path.join(__dirname, '..', 'index.js')
 const example = `GCP_PROJECT=test-project
 NEW_KEY=new-value
 `
 
-async function run(tmpDir, examplePath) {
-  await execFileAsync('node', [path.join(rootDir, 'index.js'), examplePath], {
-    cwd: tmpDir
-  })
-}
-
-test('file mode: new .env is written with mode 0600', async () => {
-  const tmpDir = await fs.mkdtemp(path.join(__dirname, 'tmp-'))
-  const examplePath = path.join(tmpDir, '.env.example')
-  const envPath = path.join(tmpDir, '.env')
-
+async function withTmpDir(fn) {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'envsync-'))
   try {
-    await fs.writeFile(examplePath, example)
-    await run(tmpDir, examplePath)
-
-    const stat = await fs.stat(envPath)
-    assert.equal(stat.mode & 0o777, 0o600)
+    await fn({
+      tmpDir,
+      examplePath: path.join(tmpDir, '.env.example'),
+      envPath: path.join(tmpDir, '.env')
+    })
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true })
   }
+}
+
+const run = (tmpDir, examplePath) =>
+  execFileAsync('node', [indexPath, examplePath], { cwd: tmpDir })
+
+test('file mode: new .env is written with mode 0600', async () => {
+  await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
+    await fs.writeFile(examplePath, example)
+    await run(tmpDir, examplePath)
+
+    assert.equal((await fs.stat(envPath)).mode & 0o777, 0o600)
+  })
 })
 
-test('file mode: existing 0644 .env is changed to 0600', async () => {
-  const tmpDir = await fs.mkdtemp(path.join(__dirname, 'tmp-'))
-  const examplePath = path.join(tmpDir, '.env.example')
-  const envPath = path.join(tmpDir, '.env')
-
-  try {
+test('file mode: existing 0644 .env is replaced by a 0600 file', async () => {
+  await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
     await fs.writeFile(examplePath, example)
     await fs.writeFile(envPath, 'OLD_KEY=old-value\n')
     await fs.chmod(envPath, 0o644)
-    assert.equal((await fs.stat(envPath)).mode & 0o777, 0o644)
+    // A second name for the original inode. If the original file were
+    // written in place, it would hold the new secrets while still 0644.
+    const originalPath = path.join(tmpDir, 'original')
+    await fs.link(envPath, originalPath)
 
     await run(tmpDir, examplePath)
 
-    const stat = await fs.stat(envPath)
-    assert.equal(stat.mode & 0o777, 0o600)
+    const original = await fs.stat(originalPath)
+    assert.equal(original.mode & 0o777, 0o644)
+    assert.equal(await fs.readFile(originalPath, 'utf8'), 'OLD_KEY=old-value\n')
+
+    const env = await fs.stat(envPath)
+    assert.equal(env.mode & 0o777, 0o600)
+    assert.notEqual(env.ino, original.ino)
+    const content = await fs.readFile(envPath, 'utf8')
+    assert.match(content, /NEW_KEY=new-value/)
+    assert.match(content, /OLD_KEY=old-value/)
+  })
+})
+
+test('file mode: a symlinked .env is replaced, the target is untouched', async () => {
+  await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
+    await fs.writeFile(examplePath, example)
+    const targetPath = path.join(tmpDir, 'target')
+    await fs.writeFile(targetPath, 'TARGET_KEY=target-value\n')
+    await fs.chmod(targetPath, 0o644)
+    await fs.symlink(targetPath, envPath)
+
+    await run(tmpDir, examplePath)
+
+    assert.equal((await fs.lstat(envPath)).isSymbolicLink(), false)
+    assert.equal((await fs.stat(envPath)).mode & 0o777, 0o600)
     assert.match(await fs.readFile(envPath, 'utf8'), /NEW_KEY=new-value/)
-  } finally {
-    await fs.rm(tmpDir, { recursive: true, force: true })
-  }
+    assert.equal(
+      await fs.readFile(targetPath, 'utf8'),
+      'TARGET_KEY=target-value\n'
+    )
+    assert.equal((await fs.stat(targetPath)).mode & 0o777, 0o644)
+  })
+})
+
+test('file mode: a write error prints a message, exits 1 and leaves no temp file', async () => {
+  await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
+    await fs.writeFile(examplePath, example)
+    // rename() of a file over a directory fails
+    await fs.mkdir(envPath)
+
+    await assert.rejects(run(tmpDir, examplePath), (err) => {
+      assert.equal(err.code, 1)
+      assert.match(err.stderr, /Could not write .*\.env: /)
+      assert.doesNotMatch(err.stderr, /\n\s+at /)
+      return true
+    })
+
+    const files = (await fs.readdir(tmpDir)).sort()
+    assert.deepEqual(files, ['.env', '.env.example'])
+  })
 })

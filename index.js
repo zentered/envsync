@@ -3,6 +3,7 @@
 'use strict'
 
 import fs from 'fs/promises'
+import { randomBytes } from 'crypto'
 import { readExample } from './lib/readExample.js'
 import { readEnv } from './lib/readEnv.js'
 import { joinEnv } from './lib/joinEnv.js'
@@ -49,6 +50,15 @@ for (const [key, value] of existingEnv.entries()) {
   }
 }
 
-// mode only applies when the file is created, so chmod an existing file too
-await fs.writeFile(output, joinEnv(mergedEnv), { mode: 0o600 })
-await fs.chmod(output, 0o600)
+// Write to a private temp file in the same directory, then rename it over
+// the output. The secrets are never in a file with looser permissions, and a
+// symlinked output is replaced instead of followed.
+const tmpOutput = `${output}.${randomBytes(6).toString('hex')}`
+try {
+  await fs.writeFile(tmpOutput, joinEnv(mergedEnv), { flag: 'wx', mode: 0o600 })
+  await fs.rename(tmpOutput, output)
+} catch (err) {
+  await fs.rm(tmpOutput, { force: true })
+  console.error(`Could not write ${output}: ${err.message}`)
+  process.exitCode = 1
+}
