@@ -75,9 +75,25 @@ test('joinEnv() uses single quotes for a multi-line value with backslashes', () 
   assert.equal(joinEnv([['KEY', 'a\\nb\nc']]), `KEY='a\\nb\nc'`)
 })
 
-test('joinEnv() refuses a value no quote style can carry and names the key', () => {
-  assert.throws(() => joinEnv([['BAD_KEY', `it's "both" # x`]]), /BAD_KEY/)
-  assert.throws(() => joinEnv([['CR_KEY', 'a\rb']]), /CR_KEY/)
+test('joinEnv() refuses a value no quote style can carry, naming the key and why', () => {
+  assert.throws(
+    () => joinEnv([['BAD_KEY', `it's "both" # x`]]),
+    (err) => {
+      assert.match(err.message, /BAD_KEY/)
+      assert.match(err.message, /single quote/)
+      assert.match(err.message, /double quote/)
+      assert.match(err.message, /backtick/i)
+      return true
+    }
+  )
+  assert.throws(
+    () => joinEnv([['CR_KEY', 'a\rb']]),
+    (err) => {
+      assert.match(err.message, /CR_KEY/)
+      assert.match(err.message, /carriage return/)
+      return true
+    }
+  )
 })
 
 test('joinEnv() output reads back through readEnv() and node --env-file', async () => {
