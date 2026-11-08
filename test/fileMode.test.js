@@ -106,19 +106,43 @@ test('file mode: a write error prints a message, exits 1 and leaves no temp file
   })
 })
 
-test('file mode: stale temp files from a crashed run are removed on the next run', async () => {
+test('file mode: stale temp files older than 10 minutes are removed, fresh ones kept', async () => {
   await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
     await fs.writeFile(examplePath, example)
     const stale = path.join(tmpDir, '.env.envsync-0123456789ab.tmp')
+    // may belong to a run that is still writing
+    const fresh = path.join(tmpDir, '.env.envsync-ba9876543210.tmp')
     // names that do not match the exact pattern must stay
     const keep = ['.env.envsync-0123456789ab.tmp.bak', '.env.backup', 'x.tmp']
     await fs.writeFile(stale, 'OLD_SECRET=leftover\n', { mode: 0o600 })
+    await fs.writeFile(fresh, 'LIVE_SECRET=in-flight\n', { mode: 0o600 })
     for (const name of keep) await fs.writeFile(path.join(tmpDir, name), 'x')
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000)
+    await fs.utimes(stale, hourAgo, hourAgo)
 
     await run(tmpDir, examplePath)
 
     const files = (await fs.readdir(tmpDir)).sort()
-    assert.deepEqual(files, ['.env', '.env.example', ...keep].sort())
+    assert.deepEqual(
+      files,
+      ['.env', '.env.example', path.basename(fresh), ...keep].sort()
+    )
+    assert.match(await fs.readFile(envPath, 'utf8'), /NEW_KEY=new-value/)
+  })
+})
+
+test('file mode: an unlistable output directory does not stop the write', async () => {
+  await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
+    await fs.writeFile(examplePath, example)
+    // write and search, but no read: readdir fails, creating files works
+    await fs.chmod(tmpDir, 0o300)
+
+    try {
+      await run(tmpDir, examplePath)
+    } finally {
+      await fs.chmod(tmpDir, 0o700)
+    }
+
     assert.match(await fs.readFile(envPath, 'utf8'), /NEW_KEY=new-value/)
   })
 })
@@ -154,7 +178,8 @@ test('file mode: an unreadable existing .env aborts and is left untouched', asyn
     await fs.writeFile(examplePath, example)
     const original = 'CUSTOM_KEY=custom-value\n'
     await fs.writeFile(envPath, original)
-    await fs.chmod(envPath, 0o000)
+    // writable but unreadable: a run that ignores the read error would replace it
+    await fs.chmod(envPath, 0o200)
 
     try {
       await assert.rejects(run(tmpDir, examplePath), (err) => {

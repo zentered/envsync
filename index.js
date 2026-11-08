@@ -16,6 +16,33 @@ const exampleFile = await fs.readFile(filePath, 'utf8')
 const env = await readExample(exampleFile)
 const output = filePath.replace('.example', '')
 
+const STALE_TMP_MS = 10 * 60 * 1000
+
+// Remove temp files that a crashed run left next to the output. Only files
+// older than STALE_TMP_MS are removed, because a newer one can belong to a run
+// that is still writing. Best effort: a failure here must not stop the sync.
+async function removeStaleTmpFiles(output) {
+  const dir = path.dirname(output)
+  const prefix = `${path.basename(output)}.envsync-`
+  try {
+    for (const name of await fs.readdir(dir)) {
+      if (
+        !name.startsWith(prefix) ||
+        !/^[0-9a-f]{12}\.tmp$/.test(name.slice(prefix.length))
+      ) {
+        continue
+      }
+      const file = path.join(dir, name)
+      const { mtimeMs } = await fs.stat(file)
+      if (Date.now() - mtimeMs > STALE_TMP_MS) {
+        await fs.rm(file, { force: true })
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
 async function main() {
   // Check if .env file already exists
   let existingEnv = new Map()
@@ -62,16 +89,7 @@ async function main() {
   // symlinked output is replaced instead of followed.
   // The temp name is recognizable so a leftover from a crashed run (it holds all
   // secrets and a `.env` ignore rule does not match it) is removed on the next run.
-  const outputDir = path.dirname(output)
-  const tmpPrefix = `${path.basename(output)}.envsync-`
-  const isStaleTmp = (name) =>
-    name.startsWith(tmpPrefix) &&
-    /^[0-9a-f]{12}\.tmp$/.test(name.slice(tmpPrefix.length))
-  for (const name of await fs.readdir(outputDir)) {
-    if (isStaleTmp(name)) {
-      await fs.rm(path.join(outputDir, name), { force: true })
-    }
-  }
+  await removeStaleTmpFiles(output)
 
   const tmpOutput = `${output}.envsync-${randomBytes(6).toString('hex')}.tmp`
   try {
