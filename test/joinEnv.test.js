@@ -40,8 +40,6 @@ test('joinEnv() leaves values unquoted when they read back unchanged', () => {
     'Hello World',
     'postgresql://user:pass=1@localhost:5432/db?schema=public',
     '',
-    'Ab"c\'d`e=f\\g',
-    'a$b',
     'say "hi" and it\'s fine',
     'C:\\path\\new'
   ]
@@ -75,6 +73,44 @@ test('joinEnv() uses single quotes for a multi-line value with backslashes', () 
   assert.equal(joinEnv([['KEY', 'a\\nb\nc']]), `KEY='a\\nb\nc'`)
 })
 
+test('joinEnv() single-quotes a value with $ or a backtick', () => {
+  const values = [
+    'abc$(printf injected)#',
+    '$HOME',
+    '${X}',
+    'a$b',
+    'a`b`c',
+    'multi\nline $X'
+  ]
+  for (const value of values) {
+    assert.equal(joinEnv([['K', value]]), `K='${value}'`, JSON.stringify(value))
+  }
+})
+
+test('joinEnv() output with $ does not run a command when sourced by a shell', async () => {
+  const out = joinEnv([['PASSWORD', 'abc$(printf injected)#']])
+  const { stdout } = await execFileAsync('sh', [
+    '-c',
+    `${out}; printf %s "$PASSWORD"`
+  ])
+  assert.equal(stdout, 'abc$(printf injected)#')
+})
+
+test('joinEnv() refuses $ or a backtick together with a single quote, naming the key and shell expansion', () => {
+  for (const value of ["it's $HOME", "it's `x`"]) {
+    assert.throws(
+      () => joinEnv([['SH_KEY', value]]),
+      (err) => {
+        assert.match(err.message, /SH_KEY/)
+        assert.match(err.message, /shell/i)
+        assert.doesNotMatch(err.message, /HOME/)
+        return true
+      },
+      value
+    )
+  }
+})
+
 test('joinEnv() refuses a value no quote style can carry, naming the key and why', () => {
   assert.throws(
     () => joinEnv([['BAD_KEY', `it's "both" # x`]]),
@@ -106,7 +142,7 @@ test('joinEnv() output reads back through readEnv() and node --env-file', async 
     BACKSLASH_N: 'literal \\n here',
     BACKSLASH_MULTI: 'a\\b\nc',
     JSON: '{"type":"service_account","private_key":"-----BEGIN-----\\nabc\\n-----END-----\\n"}',
-    SPECIAL: 'Ab"c\'d`e=f\\g',
+    SPECIAL: 'Ab"cd`e=f\\g',
     PLAIN: 'plain',
     EMPTY: ''
   }
@@ -143,11 +179,16 @@ function prng(seed) {
   }
 }
 
-// Node drops CR, and with a `'` the only quote left is `"`, which cannot hold
-// a `"` or a literal backslash-n (Node unescapes it).
+// Node drops CR. With a `'` the only quote left is `"`, which cannot hold a
+// `"` or a literal backslash-n (Node unescapes it). A `$` or backtick may only
+// be single-quoted, which cannot hold a `'`.
 const isRefusable = (value) =>
   value.includes('\r') ||
-  (value.includes("'") && (value.includes('"') || value.includes('\\n')))
+  (value.includes("'") &&
+    (value.includes('"') ||
+      value.includes('\\n') ||
+      value.includes('$') ||
+      value.includes('`')))
 
 test('joinEnv() property: every file reads back exactly or is refused', () => {
   const alphabet = [
@@ -198,6 +239,12 @@ test('joinEnv() property: every file reads back exactly or is refused', () => {
     }
 
     assert.deepEqual([...readEnv(out)], entries, label)
+    // a shell must never expand a value, so $ and backtick values are single-quoted
+    for (const [key, value] of entries) {
+      if (/[$`]/.test(value)) {
+        assert.ok(`\n${out}`.includes(`\n${key}='`), label)
+      }
+    }
   }
 
   // the property test must exercise both outcomes

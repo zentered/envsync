@@ -30,9 +30,11 @@ values from GCP Secrets Manager, and writes them to a `.env` file.
 
 ### Requirements
 
-- Node.js `^22.21.0 || >=24.10.0`. Node 22.13 to 22.20 and 23.x ship an older
-  `util.parseEnv` that misreads quoted multi-line values (checked on 22.13 and
-  23.11: `K="a\nb=c"` becomes two keys)
+- Node.js `^22.21.0 || >=24.10.0`. Older `util.parseEnv` parsers differ.
+  Measured: Node 22.13 and 23.11 read `K="a\nb=c"` with a second, bogus key
+  (`"a\nb`), read `K=x#y` as `x#y`, and read `A="x\nB=z\nC="y"` with extra keys.
+  Node 22.16.0, 22.21.0 and 26.13 read these as Node 22.21 does: one `K`, `x`
+  for `x#y`, and no extra keys
 - A `keyfile.json` for GCP service account authentication must be present in the
   working directory
 - The first variable in `.env.example` must be `GCP_PROJECT` or
@@ -97,8 +99,18 @@ Tests use `esmock` for mocking ES modules. The test suite includes:
   as Node reads them
 - `lib/joinEnv.js` writes a value as is when Node reads it back unchanged.
   Otherwise it tries double quotes with `\n` escaped, single quotes, then double
-  quotes with raw newlines. A value no form can carry (CR, or `'` with `"`)
-  throws an error naming the key. Dotenv compatibility is not verified
+  quotes with raw newlines. A value with `$` or a backtick is only ever
+  single-quoted, so a shell that sources the file never expands it. A value no
+  form can carry throws an error naming the key. Refused values:
+  - CR (Node drops it)
+  - `'` together with `$` or a backtick (shell expansion)
+  - `'` together with `"` or a literal backslash-n, when the value needs quotes
+    (only backticks would carry it, and those allow command substitution)
+
+  An existing value that can only be written in backticks, such as one with `'`
+  and `"` plus `#`, is refused on every sync until it is edited by hand. Dotenv
+  compatibility is not verified
+
 - Whitespace is only trimmed from the beginning/end of keys and values,
   preserving internal spaces
 - The `GCP_PROJECT` variable must appear **before** any `envsync//` variables,
