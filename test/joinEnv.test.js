@@ -104,6 +104,20 @@ test('joinEnv() output reads back through readEnv() and node --env-file', async 
   }
 })
 
+for (const quote of ['"', "'", '`']) {
+  test(`joinEnv() does not let an unclosed leading ${quote} swallow the next keys`, () => {
+    const entries = [
+      ['A', `${quote}abc`],
+      ['B', `x y${quote}z`],
+      ['C', '1']
+    ]
+
+    const out = joinEnv(entries)
+
+    assert.deepEqual([...readEnv(out)], entries)
+  })
+}
+
 // Deterministic PRNG so a failure is reproducible.
 function prng(seed) {
   let state = seed
@@ -113,7 +127,13 @@ function prng(seed) {
   }
 }
 
-test('joinEnv() property: every value reads back exactly or is refused', () => {
+// Node drops CR, and with a `'` the only quote left is `"`, which cannot hold
+// a `"` or a literal backslash-n (Node unescapes it).
+const isRefusable = (value) =>
+  value.includes('\r') ||
+  (value.includes("'") && (value.includes('"') || value.includes('\\n')))
+
+test('joinEnv() property: every file reads back exactly or is refused', () => {
   const alphabet = [
     '\n',
     '\r',
@@ -132,42 +152,36 @@ test('joinEnv() property: every value reads back exactly or is refused', () => {
     'export'
   ]
   const random = prng(20260109)
-  let refused = 0
-
-  for (let run = 0; run < 5000; run++) {
-    const length = Math.floor(random() * 10)
+  const randomValue = () => {
     let value = ''
+    const length = Math.floor(random() * 10)
     for (let i = 0; i < length; i++) {
       value += alphabet[Math.floor(random() * alphabet.length)]
     }
+    return value
+  }
+  let refused = 0
+
+  for (let run = 0; run < 5000; run++) {
+    const entries = []
+    const count = 1 + Math.floor(random() * 4)
+    for (let i = 0; i < count; i++) entries.push([`KEY${i}`, randomValue()])
+    const label = JSON.stringify(entries)
 
     let out
     try {
-      out = joinEnv([
-        ['BEFORE', 'x'],
-        ['KEY', value],
-        ['AFTER', 'y']
-      ])
+      out = joinEnv(entries)
     } catch (err) {
       refused++
-      assert.match(err.message, /KEY/)
-      // Refusal is only allowed when Node cannot carry the value: it drops CR,
-      // and with a `'` the only quote left is `"`, which cannot hold a `"` or
-      // a literal backslash-n (Node unescapes it).
-      assert.ok(
-        value.includes('\r') ||
-          (value.includes("'") &&
-            (value.includes('"') || value.includes('\\n'))),
-        `refused a value that should be writable: ${JSON.stringify(value)}`
-      )
+      const key = err.message.match(/Cannot write (KEY\d)/)?.[1]
+      assert.ok(key, `unexpected error ${err.message} for ${label}`)
+      // refusal is only allowed for a value Node cannot carry
+      const value = entries.find(([k]) => k === key)[1]
+      assert.ok(isRefusable(value), `refused a writable value in ${label}`)
       continue
     }
 
-    const parsed = readEnv(out)
-    assert.equal(parsed.get('KEY'), value, JSON.stringify(value))
-    assert.equal(parsed.get('BEFORE'), 'x', JSON.stringify(value))
-    assert.equal(parsed.get('AFTER'), 'y', JSON.stringify(value))
-    assert.equal(parsed.size, 3, JSON.stringify(value))
+    assert.deepEqual([...readEnv(out)], entries, label)
   }
 
   // the property test must exercise both outcomes
