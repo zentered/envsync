@@ -4,6 +4,7 @@
 
 import fs from 'fs/promises'
 import { randomBytes } from 'crypto'
+import path from 'path'
 import { readExample } from './lib/readExample.js'
 import { readEnv } from './lib/readEnv.js'
 import { joinEnv } from './lib/joinEnv.js'
@@ -53,12 +54,29 @@ for (const [key, value] of existingEnv.entries()) {
 // Write to a private temp file in the same directory, then rename it over
 // the output. The secrets are never in a file with looser permissions, and a
 // symlinked output is replaced instead of followed.
-const tmpOutput = `${output}.${randomBytes(6).toString('hex')}`
+// The temp name is recognizable so a leftover from a crashed run (it holds all
+// secrets and a `.env` ignore rule does not match it) is removed on the next run.
+const outputDir = path.dirname(output)
+const tmpPrefix = `${path.basename(output)}.envsync-`
+const isStaleTmp = (name) =>
+  name.startsWith(tmpPrefix) &&
+  /^[0-9a-f]{12}\.tmp$/.test(name.slice(tmpPrefix.length))
+for (const name of await fs.readdir(outputDir)) {
+  if (isStaleTmp(name)) {
+    await fs.rm(path.join(outputDir, name), { force: true })
+  }
+}
+
+const tmpOutput = `${output}.envsync-${randomBytes(6).toString('hex')}.tmp`
 try {
   await fs.writeFile(tmpOutput, joinEnv(mergedEnv), { flag: 'wx', mode: 0o600 })
   await fs.rename(tmpOutput, output)
 } catch (err) {
-  await fs.rm(tmpOutput, { force: true })
+  try {
+    await fs.rm(tmpOutput, { force: true })
+  } catch {
+    // keep the original error
+  }
   console.error(`Could not write ${output}: ${err.message}`)
   process.exitCode = 1
 }

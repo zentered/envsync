@@ -102,3 +102,42 @@ test('file mode: a write error prints a message, exits 1 and leaves no temp file
     assert.deepEqual(files, ['.env', '.env.example'])
   })
 })
+
+test('file mode: stale temp files from a crashed run are removed on the next run', async () => {
+  await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
+    await fs.writeFile(examplePath, example)
+    const stale = path.join(tmpDir, '.env.envsync-0123456789ab.tmp')
+    // names that do not match the exact pattern must stay
+    const keep = ['.env.envsync-0123456789ab.tmp.bak', '.env.backup', 'x.tmp']
+    await fs.writeFile(stale, 'OLD_SECRET=leftover\n', { mode: 0o600 })
+    for (const name of keep) await fs.writeFile(path.join(tmpDir, name), 'x')
+
+    await run(tmpDir, examplePath)
+
+    const files = (await fs.readdir(tmpDir)).sort()
+    assert.deepEqual(files, ['.env', '.env.example', ...keep].sort())
+    assert.match(await fs.readFile(envPath, 'utf8'), /NEW_KEY=new-value/)
+  })
+})
+
+test('file mode: a failing temp file cleanup does not hide the write error', async () => {
+  await withTmpDir(async ({ tmpDir, examplePath, envPath }) => {
+    await fs.writeFile(examplePath, example)
+    await fs.mkdir(envPath)
+    const failRm =
+      "data:text/javascript,import fs from 'fs/promises';" +
+      "fs.rm = async () => { throw new Error('rm failed') }"
+
+    await assert.rejects(
+      execFileAsync('node', ['--import', failRm, indexPath, examplePath], {
+        cwd: tmpDir
+      }),
+      (err) => {
+        assert.equal(err.code, 1)
+        assert.match(err.stderr, /Could not write .*\.env: /)
+        assert.doesNotMatch(err.stderr, /rm failed/)
+        return true
+      }
+    )
+  })
+})
