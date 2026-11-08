@@ -1,19 +1,18 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'fs/promises'
+import os from 'os'
 import path from 'path'
-import { fileURLToPath } from 'url'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { joinEnv } from '../lib/joinEnv.js'
 import { readEnv } from '../lib/readEnv.js'
 
 const execFileAsync = promisify(execFile)
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Parse a .env string the way `node --env-file` does, in a child process.
 async function parseWithNode(content) {
-  const tmpDir = await fs.mkdtemp(path.join(__dirname, 'tmp-'))
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'envsync-'))
   try {
     const file = path.join(tmpDir, '.env')
     await fs.writeFile(file, content)
@@ -36,16 +35,19 @@ test('joinEnv() returns value from GCP', () => {
   assert.equal(actual, 'testkey=testvalue')
 })
 
-test('joinEnv() leaves plain values unquoted', () => {
-  const actual = joinEnv([
-    ['A', 'Hello World'],
-    ['B', 'postgresql://user:pass=1@localhost:5432/db?schema=public'],
-    ['C', '']
-  ])
-  assert.equal(
-    actual,
-    'A=Hello World\nB=postgresql://user:pass=1@localhost:5432/db?schema=public\nC='
-  )
+test('joinEnv() leaves values unquoted when they read back unchanged', () => {
+  const values = [
+    'Hello World',
+    'postgresql://user:pass=1@localhost:5432/db?schema=public',
+    '',
+    'Ab"c\'d`e=f\\g',
+    'a$b',
+    'say "hi" and it\'s fine',
+    'C:\\path\\new'
+  ]
+  for (const value of values) {
+    assert.equal(joinEnv([['K', value]]), `K=${value}`, JSON.stringify(value))
+  }
 })
 
 test('joinEnv() escapes newlines in a multi-line value', () => {
@@ -65,7 +67,20 @@ test('joinEnv() quotes a value with leading or trailing whitespace', () => {
   assert.equal(joinEnv([['KEY', ' padded ']]), 'KEY=" padded "')
 })
 
-test('joinEnv() output round-trips through readEnv() and node --env-file', async () => {
+test('joinEnv() quotes a value that starts and ends with a quote', () => {
+  assert.equal(joinEnv([['KEY', '"x"']]), `KEY='"x"'`)
+})
+
+test('joinEnv() uses single quotes for a multi-line value with backslashes', () => {
+  assert.equal(joinEnv([['KEY', 'a\\nb\nc']]), `KEY='a\\nb\nc'`)
+})
+
+test('joinEnv() refuses a value no quote style can carry and names the key', () => {
+  assert.throws(() => joinEnv([['BAD_KEY', `it's "both" # x`]]), /BAD_KEY/)
+  assert.throws(() => joinEnv([['CR_KEY', 'a\rb']]), /CR_KEY/)
+})
+
+test('joinEnv() output reads back through readEnv() and node --env-file', async () => {
   const values = {
     PEM: pem,
     HASH: 'pass#word # more',
@@ -73,23 +88,88 @@ test('joinEnv() output round-trips through readEnv() and node --env-file', async
     SINGLE: "it's",
     BACKSLASH: 'C:\\path\\new',
     BACKSLASH_N: 'literal \\n here',
-    CR: 'a\r\nb',
-    MIXED: `it's "both" \`and\` back\\slash\nnewline #`,
+    BACKSLASH_MULTI: 'a\\b\nc',
     JSON: '{"type":"service_account","private_key":"-----BEGIN-----\\nabc\\n-----END-----\\n"}',
+    SPECIAL: 'Ab"c\'d`e=f\\g',
     PLAIN: 'plain',
     EMPTY: ''
   }
   const out = joinEnv([['GCP_PROJECT', 'p'], [''], ...Object.entries(values)])
 
   const read = readEnv(out)
-  for (const [key, value] of Object.entries(values)) {
-    assert.equal(read.get(key), value, `readEnv ${key}`)
-  }
-
   const parsed = await parseWithNode(out)
   for (const [key, value] of Object.entries(values)) {
-    // MIXED needs all three quote types, see joinEnv.js. Node converts CRLF to LF.
-    if (key === 'MIXED' || key === 'CR') continue
+    assert.equal(read.get(key), value, `readEnv ${key}`)
     assert.equal(parsed[key], value, `node --env-file ${key}`)
   }
+})
+
+// Deterministic PRNG so a failure is reproducible.
+function prng(seed) {
+  let state = seed
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0
+    return state / 2 ** 32
+  }
+}
+
+test('joinEnv() property: every value reads back exactly or is refused', () => {
+  const alphabet = [
+    '\n',
+    '\r',
+    '"',
+    "'",
+    '`',
+    '\\',
+    '#',
+    '=',
+    '$',
+    ' ',
+    '\t',
+    'a',
+    'b',
+    'n',
+    'export'
+  ]
+  const random = prng(20260109)
+  let refused = 0
+
+  for (let run = 0; run < 5000; run++) {
+    const length = Math.floor(random() * 10)
+    let value = ''
+    for (let i = 0; i < length; i++) {
+      value += alphabet[Math.floor(random() * alphabet.length)]
+    }
+
+    let out
+    try {
+      out = joinEnv([
+        ['BEFORE', 'x'],
+        ['KEY', value],
+        ['AFTER', 'y']
+      ])
+    } catch (err) {
+      refused++
+      assert.match(err.message, /KEY/)
+      // Refusal is only allowed when Node cannot carry the value: it drops CR,
+      // and with a `'` the only quote left is `"`, which cannot hold a `"` or
+      // a literal backslash-n (Node unescapes it).
+      assert.ok(
+        value.includes('\r') ||
+          (value.includes("'") &&
+            (value.includes('"') || value.includes('\\n'))),
+        `refused a value that should be writable: ${JSON.stringify(value)}`
+      )
+      continue
+    }
+
+    const parsed = readEnv(out)
+    assert.equal(parsed.get('KEY'), value, JSON.stringify(value))
+    assert.equal(parsed.get('BEFORE'), 'x', JSON.stringify(value))
+    assert.equal(parsed.get('AFTER'), 'y', JSON.stringify(value))
+    assert.equal(parsed.size, 3, JSON.stringify(value))
+  }
+
+  // the property test must exercise both outcomes
+  assert.ok(refused > 0)
 })
