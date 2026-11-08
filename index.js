@@ -49,4 +49,6 @@ for (const [key, value] of existingEnv.entries()) {
   }
 }
 
-await fs.writeFile(output, joinEnv(mergedEnv))
+// mode only applies when the file is created, so chmod an existing file too
+await fs.writeFile(output, joinEnv(mergedEnv), { mode: 0o600 })
+await fs.chmod(output, 0o600)
