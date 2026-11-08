@@ -35,15 +35,18 @@ const parseWithNode = (content) =>
 
 // Source a .env string in sh. `INJ` is a function that records that it ran.
 // Returns how often INJ ran and the value of each variable.
-const sourceInSh = (content, keys) =>
+const sourceInSh = (content, keys, shell = 'sh') =>
   withTmpDir(async (tmpDir) => {
     await fs.writeFile(path.join(tmpDir, 'f'), content)
+    // files that an unquoted `export G=a*` would glob against
+    await fs.writeFile(path.join(tmpDir, 'G=a-decoy'), '')
+    await fs.writeFile(path.join(tmpDir, 'H=a-decoy'), '')
     const marker = path.join(tmpDir, 'marker')
     const printAll = keys.map((key) => `printf '%s\\0' "$${key}"`).join('; ')
     let stdout
     try {
       ;({ stdout } = await execFileAsync(
-        'sh',
+        shell,
         ['-c', `INJ() { echo ran >> '${marker}'; }; . ./f; ${printAll}`],
         { cwd: tmpDir }
       ))
@@ -73,7 +76,7 @@ test('joinEnv() writes only shell-safe characters bare', () => {
     'ABC123',
     '',
     'postgresql://user:pass=1@localhost:5432/db?schema=public',
-    'a?b*c[1]d^e{f}'
+    'a?b*c[1]d^e'
   ]
   for (const value of values) {
     assert.equal(joinEnv([['K', value]]), `K=${value}`, JSON.stringify(value))
@@ -83,6 +86,8 @@ test('joinEnv() writes only shell-safe characters bare', () => {
 test('joinEnv() single-quotes every other value', () => {
   const values = [
     'Hello World',
+    'a{1,2}',
+    'a{b}',
     'abc; printf injected',
     'x;INJ',
     'a|b',
@@ -128,6 +133,50 @@ test('joinEnv() output is inert and exact when sourced by a shell', async () => 
 
   assert.equal(runs, 0)
   assert.deepEqual(sh, Object.values(values))
+})
+
+test('joinEnv() uses only the narrow bare set for export keys', () => {
+  assert.equal(
+    joinEnv([['export K', 'a_b-c.d/e:f=g@h%i+j,k']]),
+    'export K=a_b-c.d/e:f=g@h%i+j,k'
+  )
+  for (const value of ['a?b', 'a*', '[a]', 'x{1,2}', 'a^b', 'Hello World']) {
+    assert.equal(joinEnv([['export K', value]]), `export K='${value}'`, value)
+  }
+})
+
+test('joinEnv() export lines are inert and exact in sh, bash and dash', async () => {
+  const entries = [
+    ['export L', 'x{1,2}'],
+    ['export G', 'a*'],
+    ['export H', 'a?'],
+    ['export M', '[a]'],
+    ['export N', 'a^b'],
+    ['export P', 'plain_1-2'],
+    ['Q', 'x{1,2}'],
+    ['R', 'a*'],
+    ['S', 'y?z[1]']
+  ]
+  const out = joinEnv(entries)
+  const names = entries.map(([key]) => key.replace(/^export /, ''))
+
+  let tested = 0
+  for (const shell of ['sh', 'bash', 'dash']) {
+    const available = await execFileAsync(shell, ['-c', 'true']).then(
+      () => true,
+      () => false
+    )
+    if (!available) continue
+    tested++
+    const { runs, values } = await sourceInSh(out, names, shell)
+    assert.equal(runs, 0, shell)
+    assert.deepEqual(
+      values,
+      entries.map(([, value]) => value),
+      shell
+    )
+  }
+  assert.ok(tested >= 1)
 })
 
 test('joinEnv() uses double quotes for a value with a single quote when that is inert', () => {

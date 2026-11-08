@@ -99,12 +99,13 @@ Tests use `esmock` for mocking ES modules. The test suite includes:
   as Node reads them
 - `lib/joinEnv.js` writes a `.env` that Node reads back exactly and that is safe
   to source in a shell. A value is bare only when every character is in
-  `[A-Za-z0-9_@%+=:,./?*[\]^{}-]` (or it is empty). Otherwise it is
-  single-quoted, with raw newlines for multi-line values. A value with a `'` and
-  none of `"`, `\`, `$` or a backtick is double-quoted instead. Comment entries
-  from `.env.example` are written as they are. Every written value must also
-  pass a whole-file `util.parseEnv` check. Refused values throw an error naming
-  the key:
+  `[A-Za-z0-9_@%+=:,./?*[\]^-]` (or it is empty). For an `export` key only
+  `[A-Za-z0-9_@%+=:,./-]` is bare, because a shell expands braces and globs in
+  `export` arguments. Otherwise it is single-quoted, with raw newlines for
+  multi-line values. A value with a `'` and none of `"`, `\`, `$` or a backtick
+  is double-quoted instead. Comment entries from `.env.example` are written as
+  they are. Every written value must also pass a whole-file `util.parseEnv`
+  check. Refused values throw an error naming the key:
   - CR (Node drops it)
   - `'` together with `"`, `\`, `$` or a backtick (no form is both exact for
     Node and inert in a shell; backtick quotes are not used because they allow
