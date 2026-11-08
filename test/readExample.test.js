@@ -32,3 +32,98 @@ test('joinEnv() returns value from GCP', async () => {
   ]
   assert.deepStrictEqual(actual, expected)
 })
+
+test('readExample() unquotes literal values and drops inline comments', async () => {
+  const { readExample } = await esmock('../lib/readExample.js', {
+    '../lib/fetchVariable.js': {
+      fetchVariable: async (gcpProjectId, key, value) => [key, value]
+    }
+  })
+
+  const actual = await readExample(`GCP_PROJECT=quillcy
+# a comment line
+A=foo # note
+B="v" # note
+QUOTED="value with # hash"
+UNBALANCED="oops
+EMPTY=
+`)
+
+  assert.deepEqual(actual, [
+    ['GCP_PROJECT', 'quillcy'],
+    ['# a comment line', undefined],
+    ['A', 'foo'],
+    ['B', 'v'],
+    ['QUOTED', 'value with # hash'],
+    ['UNBALANCED', '"oops'],
+    ['EMPTY', ''],
+    ['']
+  ])
+})
+
+test('readExample() keeps a quoted value that spans lines as one entry', async () => {
+  const { readExample } = await esmock('../lib/readExample.js', {
+    '../lib/fetchVariable.js': {
+      fetchVariable: async (gcpProjectId, key, value) => [key, value]
+    }
+  })
+
+  const actual = await readExample(`GCP_PROJECT=quillcy
+A="line1
+line2 # kept"
+B=2
+C='x
+y' # note
+UNBALANCED="oops
+D=4
+`)
+
+  assert.deepEqual(actual, [
+    ['GCP_PROJECT', 'quillcy'],
+    ['A', 'line1\nline2 # kept'],
+    ['B', '2'],
+    ['C', 'x\ny'],
+    ['UNBALANCED', '"oops'],
+    ['D', '4'],
+    ['']
+  ])
+})
+
+test('readExample() keeps the text of a comment line as is', async () => {
+  const { readExample } = await esmock('../lib/readExample.js', {
+    '../lib/fetchVariable.js': {
+      fetchVariable: async (gcpProjectId, key, value) => [key, value]
+    }
+  })
+
+  const actual = await readExample(`GCP_PROJECT=quillcy
+# EXAMPLE=don't use "$HOME" # x
+`)
+
+  assert.deepEqual(actual[1], ['# EXAMPLE', `don't use "$HOME" # x`])
+})
+
+test('readExample() never fetches for a commented line', async () => {
+  const fetched = []
+  const { readExample } = await esmock('../lib/readExample.js', {
+    '../lib/fetchVariable.js': {
+      fetchVariable: async (gcpProjectId, key) => {
+        fetched.push(key)
+        return [key, 'fetched']
+      }
+    }
+  })
+
+  const actual = await readExample(`GCP_PROJECT=quillcy
+#OLD_API_KEY=envsync//old-api-key
+  # SPACED=envsync//spaced
+K=envsync//k
+`)
+
+  assert.deepEqual(fetched, ['K'])
+  assert.deepEqual(actual.slice(1, 4), [
+    ['#OLD_API_KEY', 'envsync//old-api-key'],
+    ['# SPACED', 'envsync//spaced'],
+    ['K', 'fetched']
+  ])
+})

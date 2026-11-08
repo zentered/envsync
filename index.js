@@ -69,27 +69,41 @@ async function main() {
   }
 
   // Merge: update existing keys with new values from .env.example
+  // Node ignores an `export ` prefix, so match keys without it
+  const bareKey = (key) => key.replace(/^export\s+/, '')
   env.forEach(([key, value]) => {
     if (key !== '') {
-      existingEnv.set(key, value)
+      existingEnv.set(bareKey(key), value)
     }
   })
 
   // Convert Map back to array format, maintaining order: example keys come first
   const mergedEnv = env.map(([key]) => {
     if (key === '') return ['']
-    return [key, existingEnv.get(key)]
+    return [key, existingEnv.get(bareKey(key))]
   })
 
   // Add any remaining keys from existing .env that weren't in .env.example
   // Use Set for O(n) performance instead of O(n²)
   const exampleKeys = new Set(
-    env.map(([key]) => key).filter((key) => key !== '')
+    env.map(([key]) => bareKey(key)).filter((key) => key !== '')
   )
   for (const [key, value] of existingEnv.entries()) {
     if (!exampleKeys.has(key)) {
       mergedEnv.push([key, value])
     }
+  }
+
+  let contents
+  try {
+    // end with a newline: older util.parseEnv versions misread a multi-line
+    // value on the last line
+    contents = joinEnv(mergedEnv).replace(/\n?$/, '\n')
+  } catch (err) {
+    // a value that cannot be written safely: leave the existing file alone
+    console.error(err.message)
+    process.exitCode = 1
+    return
   }
 
   // Write to a private temp file in the same directory, then rename it over
@@ -101,7 +115,7 @@ async function main() {
 
   const tmpOutput = `${output}.envsync-${randomBytes(6).toString('hex')}.tmp`
   try {
-    await fs.writeFile(tmpOutput, joinEnv(mergedEnv), {
+    await fs.writeFile(tmpOutput, contents, {
       flag: 'wx',
       mode: 0o600
     })

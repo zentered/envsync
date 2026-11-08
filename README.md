@@ -86,6 +86,14 @@ belong in the environment, not in the codebase. See
   argument. The `.env` example file must end in `.example`
 - Usage: `npx envsync .env.development.example` will create `.env.development`
 
+Note: apps that read the generated `.env` with `util.parseEnv` or `--env-file`
+should run Node 22.16 or later, or Node 24 or later. Older parsers can read
+multi-line values differently.
+
+Values with spaces or shell characters are written in single quotes so the file
+is safe to source in a shell. Node and dotenv strip the quotes. Other
+`--env-file` readers, for example `docker run --env-file`, may keep them.
+
 ## Contributing
 
 See [CONTRIBUTING](CONTRIBUTING.md).
