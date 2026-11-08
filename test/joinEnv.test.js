@@ -88,6 +88,9 @@ test('joinEnv() single-quotes every other value', () => {
     'Hello World',
     'a{1,2}',
     'a{b}',
+    '=ls',
+    'a:=b',
+    ':==-:',
     'abc; printf injected',
     'x;INJ',
     'a|b',
@@ -140,12 +143,21 @@ test('joinEnv() uses only the narrow bare set for export keys', () => {
     joinEnv([['export K', 'a_b-c.d/e:f=g@h%i+j,k']]),
     'export K=a_b-c.d/e:f=g@h%i+j,k'
   )
-  for (const value of ['a?b', 'a*', '[a]', 'x{1,2}', 'a^b', 'Hello World']) {
+  for (const value of [
+    'a?b',
+    'a*',
+    '[a]',
+    'x{1,2}',
+    'a^b',
+    '=ls',
+    'a:=b',
+    'Hello World'
+  ]) {
     assert.equal(joinEnv([['export K', value]]), `export K='${value}'`, value)
   }
 })
 
-test('joinEnv() export lines are inert and exact in sh, bash and dash', async () => {
+test('joinEnv() export lines are inert and exact in sh, bash, dash and zsh', async () => {
   const entries = [
     ['export L', 'x{1,2}'],
     ['export G', 'a*'],
@@ -153,15 +165,20 @@ test('joinEnv() export lines are inert and exact in sh, bash and dash', async ()
     ['export M', '[a]'],
     ['export N', 'a^b'],
     ['export P', 'plain_1-2'],
+    ['export T', '=ls'],
+    ['export U', 'a:=b'],
     ['Q', 'x{1,2}'],
     ['R', 'a*'],
-    ['S', 'y?z[1]']
+    ['S', 'y?z[1]'],
+    ['V', '=ls'],
+    ['W', ':==-:'],
+    ['X', 'a=b:c']
   ]
   const out = joinEnv(entries)
   const names = entries.map(([key]) => key.replace(/^export /, ''))
 
   let tested = 0
-  for (const shell of ['sh', 'bash', 'dash']) {
+  for (const shell of ['sh', 'bash', 'dash', 'zsh']) {
     const available = await execFileAsync(shell, ['-c', 'true']).then(
       () => true,
       () => false

@@ -101,7 +101,10 @@ Tests use `esmock` for mocking ES modules. The test suite includes:
   to source in a shell. A value is bare only when every character is in
   `[A-Za-z0-9_@%+=:,./?*[\]^-]` (or it is empty). For an `export` key only
   `[A-Za-z0-9_@%+=:,./-]` is bare, because a shell expands braces and globs in
-  `export` arguments. Otherwise it is single-quoted, with raw newlines for
+  `export` arguments. A value that starts with `=` or contains `:=` is never
+  bare, because zsh expands it (`K==ls` becomes `/bin/ls`). A test sources the
+  output in sh, bash, dash and zsh, when installed, and checks that nothing runs
+  and every value is exact. Otherwise it is single-quoted, with raw newlines for
   multi-line values. A value with a `'` and none of `"`, `\`, `$` or a backtick
   is double-quoted instead. Comment entries from `.env.example` are written as
   they are. Every written value must also pass a whole-file `util.parseEnv`
